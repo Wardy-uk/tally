@@ -142,6 +142,20 @@ export function fetchTransactions(
   return apiGet<TlTransaction[]>(path, accessToken);
 }
 
+export interface TlBalance {
+  currency: string;
+  available: number;
+  current: number;
+  overdraft?: number;
+  update_timestamp: string;
+}
+
+/** Fetch the live balance for an account. TrueLayer returns an array with one entry. */
+export async function fetchBalance(accessToken: string, accountId: string): Promise<TlBalance | null> {
+  const results = await apiGet<TlBalance[]>(`/data/v1/accounts/${accountId}/balance`, accessToken);
+  return results[0] ?? null;
+}
+
 /** Get a valid access token for the connection, refreshing if near expiry. */
 export async function ensureFreshToken(connectionId: number): Promise<string> {
   const row = db.prepare(`SELECT * FROM truelayer_connections WHERE id = ?`).get(connectionId) as any;

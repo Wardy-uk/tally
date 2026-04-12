@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { db } from '../db/schema.js';
-import { ensureFreshToken, fetchAccounts, fetchTransactions, TlTransaction } from './truelayer-client.js';
+import { ensureFreshToken, fetchAccounts, fetchTransactions, fetchBalance, TlTransaction } from './truelayer-client.js';
 import { TransactionQueries } from '../db/queries.js';
 import { applyRulesToTxIds } from './rules-engine.js';
 import { detectTransfers } from './transfer-detector.js';
@@ -61,6 +61,29 @@ async function syncOneTlAccount(
   }
 
   applyRulesToTxIds(insertedIds);
+
+  // Fetch live balance from TrueLayer and back-calculate opening balance so
+  // Tally's current_balance matches reality. opening = live - sum(all tx).
+  try {
+    const balance = await fetchBalance(accessToken, tlAccountId);
+    if (balance) {
+      // For credit cards TrueLayer reports debt as a positive number in `current`
+      // (what you owe). Express that as a negative Tally balance.
+      const account = db.prepare(`SELECT type FROM accounts WHERE id = ?`).get(tallyAccountId) as { type: string } | undefined;
+      const signedCurrent = account?.type === 'credit'
+        ? -Math.round(Math.abs(balance.current) * 100)
+        : Math.round(balance.current * 100);
+
+      const txSum = (db.prepare(
+        `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ?`,
+      ).get(tallyAccountId) as { s: number }).s;
+
+      const opening = signedCurrent - txSum;
+      db.prepare(`UPDATE accounts SET opening_balance = ? WHERE id = ?`).run(opening, tallyAccountId);
+    }
+  } catch (e: any) {
+    console.warn(`[truelayer-sync] balance fetch failed for account ${tallyAccountId}: ${e.message}`);
+  }
 
   db.prepare(`UPDATE truelayer_accounts SET last_sync_at = ? WHERE connection_id = ? AND external_id = ?`)
     .run(new Date().toISOString(), connectionId, tlAccountId);
