@@ -14,6 +14,9 @@ import { createRulesRoutes } from './routes/rules.js';
 import { createAiRoutes } from './routes/ai.js';
 import { createSubscriptionsRoutes } from './routes/subscriptions.js';
 import { createDashboardRoutes } from './routes/dashboard.js';
+import { createBudgetsRoutes } from './routes/budgets.js';
+import { createInsightsRoutes } from './routes/insights.js';
+import { createChatRoutes } from './routes/chat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +43,9 @@ app.use('/api/rules', createRulesRoutes());
 app.use('/api/ai', createAiRoutes());
 app.use('/api/subscriptions', createSubscriptionsRoutes());
 app.use('/api/dashboard', createDashboardRoutes());
+app.use('/api/budgets', createBudgetsRoutes());
+app.use('/api/insights', createInsightsRoutes());
+app.use('/api/chat', createChatRoutes());
 
 // Serve client build in production
 if (process.env.NODE_ENV === 'production') {

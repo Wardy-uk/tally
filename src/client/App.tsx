@@ -10,6 +10,9 @@ import { TransactionsView } from './components/TransactionsView';
 import { RulesView } from './components/RulesView';
 import { SettingsView } from './components/SettingsView';
 import { SubscriptionsView } from './components/SubscriptionsView';
+import { BudgetsView } from './components/BudgetsView';
+import { InsightsView } from './components/InsightsView';
+import { ChatView } from './components/ChatView';
 import { Placeholder } from './components/Placeholder';
 
 export function App() {
@@ -44,9 +47,9 @@ export function App() {
         {view === 'accounts' && <AccountsView user={user} allUsers={allUsers} />}
         {view === 'import' && <ImportView />}
         {view === 'rules' && <RulesView />}
-        {view === 'budgets' && <Placeholder title="Budgets" description="AI-suggested and manual budgets per category" />}
-        {view === 'insights' && <Placeholder title="AI Insights" description="Monthly spending analysis and advice" />}
-        {view === 'chat' && <Placeholder title="Ask Tally" description="Chat about your finances" />}
+        {view === 'budgets' && <BudgetsView />}
+        {view === 'insights' && <InsightsView />}
+        {view === 'chat' && <ChatView />}
         {view === 'subscriptions' && <SubscriptionsView />}
         {view === 'receipts' && <Placeholder title="Receipts" description="Upload and match receipts to transactions" />}
         {view === 'settings' && <SettingsView />}
