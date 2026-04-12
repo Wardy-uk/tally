@@ -105,40 +105,62 @@ export function TransactionsView() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[220px]">
             <Input
-              placeholder="Search description or merchant…"
+              label="Search"
+              placeholder="Description or merchant…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               icon={<Search className="w-4 h-4" />}
             />
           </div>
-          <Select
-            value={accountId}
-            onChange={e => setAccountId(e.target.value)}
-            options={[
-              { value: '', label: 'All accounts' },
-              ...accounts.map(a => ({ value: a.id, label: a.name })),
-            ]}
+          <div className="min-w-[160px]">
+            <Select
+              label="Account"
+              value={accountId}
+              onChange={e => setAccountId(e.target.value)}
+              options={[
+                { value: '', label: 'All accounts' },
+                ...accounts.map(a => ({ value: a.id, label: a.name })),
+              ]}
+            />
+          </div>
+          <div className="min-w-[160px]">
+            <Select
+              label="Category"
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+              options={[
+                { value: '', label: 'All categories' },
+                { value: 'none', label: 'Uncategorised' },
+                ...categories.map(c => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          </div>
+          <div className="min-w-[140px]">
+            <Select
+              label="Type"
+              value={type}
+              onChange={e => setType(e.target.value)}
+              options={[
+                { value: '', label: 'All types' },
+                { value: 'income', label: 'Income only' },
+                { value: 'expense', label: 'Expense only' },
+              ]}
+            />
+          </div>
+          <Input
+            label="From"
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="w-[150px]"
           />
-          <Select
-            value={categoryId}
-            onChange={e => setCategoryId(e.target.value)}
-            options={[
-              { value: '', label: 'All categories' },
-              { value: 'none', label: 'Uncategorised' },
-              ...categories.map(c => ({ value: c.id, label: c.name })),
-            ]}
+          <Input
+            label="To"
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="w-[150px]"
           />
-          <Select
-            value={type}
-            onChange={e => setType(e.target.value)}
-            options={[
-              { value: '', label: 'All types' },
-              { value: 'income', label: 'Income only' },
-              { value: 'expense', label: 'Expense only' },
-            ]}
-          />
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[160px]" />
-          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[160px]" />
           {hasFilters && (
             <button
               onClick={clearFilters}
