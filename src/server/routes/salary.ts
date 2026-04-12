@@ -5,8 +5,9 @@ import { SalaryQueries, UserQueries } from '../db/queries.js';
 
 const SalaryInput = z.object({
   userId: z.number().int(),
-  baseSalaryMonthly: z.number().int(), // pence
+  baseSalaryMonthly: z.number().int(), // pence (annual input is converted client-side)
   payDay: z.number().int().min(1).max(31),
+  payDayType: z.enum(['day', 'last-working', 'working-before']).default('day'),
   accountId: z.number().int().nullable(),
   effectiveFrom: z.string(),
 });
@@ -17,6 +18,7 @@ function row(r: any) {
     userId: r.user_id,
     baseSalaryMonthly: r.base_salary_monthly,
     payDay: r.pay_day,
+    payDayType: r.pay_day_type ?? 'day',
     accountId: r.account_id,
     effectiveFrom: r.effective_from,
   };
@@ -44,7 +46,7 @@ export function createSalaryRoutes() {
     if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.message });
     const p = parsed.data;
     const result = SalaryQueries.create.run(
-      p.userId, p.baseSalaryMonthly, p.payDay, p.accountId, p.effectiveFrom,
+      p.userId, p.baseSalaryMonthly, p.payDay, p.payDayType, p.accountId, p.effectiveFrom,
     );
     res.json({ ok: true, data: { id: Number(result.lastInsertRowid) } });
   });

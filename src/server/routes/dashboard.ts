@@ -128,6 +128,7 @@ export function createDashboardRoutes() {
         actualMonth: actual,
         variance: actual - profile.base_salary_monthly,
         payDay: profile.pay_day,
+        payDayType: profile.pay_day_type ?? 'day',
       };
     });
 

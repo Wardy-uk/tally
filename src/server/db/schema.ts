@@ -231,6 +231,14 @@ function buildSchema() {
 
   `);
 
+  // Idempotent migrations — ALTER TABLE wrapped so re-runs don't throw.
+  tryExec(`ALTER TABLE salary_profiles ADD COLUMN pay_day_type TEXT NOT NULL DEFAULT 'day'`);
+}
+
+function tryExec(sql: string) {
+  try { db.exec(sql); } catch (e: any) {
+    if (!/duplicate column|already exists/i.test(e.message)) throw e;
+  }
 }
 
 function seedCategories() {

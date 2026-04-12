@@ -10,6 +10,8 @@ import { Select } from './ui/Select';
 import { api, getToken } from '../lib/api';
 import { useAccounts } from '../hooks/useAccounts';
 
+type PayDayType = 'day' | 'last-working' | 'working-before';
+
 interface SalaryEntry {
   userId: number;
   username: string;
@@ -18,6 +20,7 @@ interface SalaryEntry {
     id: number;
     baseSalaryMonthly: number;
     payDay: number;
+    payDayType: PayDayType;
     accountId: number | null;
     effectiveFrom: string;
   } | null;
@@ -147,13 +150,20 @@ function SalarySection() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function saveProfile(userId: number, base: number, payDay: number, accountId: number | null) {
+  async function saveProfile(
+    userId: number,
+    base: number,
+    payDay: number,
+    payDayType: PayDayType,
+    accountId: number | null,
+  ) {
     await api('/salary', {
       method: 'POST',
       body: JSON.stringify({
         userId,
         baseSalaryMonthly: base,
         payDay,
+        payDayType,
         accountId,
         effectiveFrom: new Date().toISOString().slice(0, 10),
       }),
@@ -180,7 +190,7 @@ function SalarySection() {
             key={e.userId}
             entry={e}
             accounts={accounts.map(a => ({ id: a.id, name: a.name }))}
-            onSave={(base, payDay, accId) => saveProfile(e.userId, base, payDay, accId)}
+            onSave={(base, payDay, payDayType, accId) => saveProfile(e.userId, base, payDay, payDayType, accId)}
           />
         ))}
         {entries.length === 0 && (
@@ -196,21 +206,37 @@ function SalaryProfileForm({
 }: {
   entry: SalaryEntry;
   accounts: Array<{ id: number; name: string }>;
-  onSave: (base: number, payDay: number, accountId: number | null) => Promise<void>;
+  onSave: (base: number, payDay: number, payDayType: PayDayType, accountId: number | null) => Promise<void>;
 }) {
-  const [base, setBase] = useState(
+  // Period toggle: store monthly internally, let user input either monthly or annual
+  const [period, setPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [amount, setAmount] = useState(
     entry.profile ? (entry.profile.baseSalaryMonthly / 100).toFixed(2) : '',
   );
+  const [payDayType, setPayDayType] = useState<PayDayType>(entry.profile?.payDayType ?? 'day');
   const [payDay, setPayDay] = useState(String(entry.profile?.payDay ?? 28));
   const [accountId, setAccountId] = useState(String(entry.profile?.accountId ?? ''));
   const [saving, setSaving] = useState(false);
 
+  // When the user flips between monthly/annual, recalculate the displayed amount
+  function flipPeriod(next: 'monthly' | 'annual') {
+    if (next === period) return;
+    const n = parseFloat(amount || '0');
+    if (!isNaN(n) && n > 0) {
+      setAmount((next === 'annual' ? n * 12 : n / 12).toFixed(2));
+    }
+    setPeriod(next);
+  }
+
   async function submit() {
     setSaving(true);
     try {
+      const raw = parseFloat(amount || '0');
+      const monthlyPence = Math.round((period === 'annual' ? raw / 12 : raw) * 100);
       await onSave(
-        Math.round(parseFloat(base || '0') * 100),
+        monthlyPence,
         Number(payDay),
+        payDayType,
         accountId ? Number(accountId) : null,
       );
     } finally {
@@ -229,23 +255,96 @@ function SalaryProfileForm({
           <div className="text-xs text-[var(--color-text-3)]">@{entry.username}</div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Input
-          label="Base salary (£/month)"
+
+      {/* Salary with period toggle */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-xs font-medium text-[var(--color-text-3)] uppercase tracking-wider">
+            Base salary (£ before tax)
+          </label>
+          <div className="flex bg-[var(--color-surface)] rounded-[8px] p-0.5 border border-[var(--color-border)]">
+            <button
+              type="button"
+              onClick={() => flipPeriod('monthly')}
+              className={`px-3 py-1 text-xs font-semibold rounded-[6px] transition ${
+                period === 'monthly'
+                  ? 'bg-[var(--color-mint-soft)] text-[var(--color-mint)]'
+                  : 'text-[var(--color-text-3)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => flipPeriod('annual')}
+              className={`px-3 py-1 text-xs font-semibold rounded-[6px] transition ${
+                period === 'annual'
+                  ? 'bg-[var(--color-mint-soft)] text-[var(--color-mint)]'
+                  : 'text-[var(--color-text-3)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              Annual
+            </button>
+          </div>
+        </div>
+        <input
           type="number"
           step="0.01"
-          value={base}
-          onChange={e => setBase(e.target.value)}
-          placeholder="0.00"
+          value={amount}
+          onChange={e => setAmount(e.target.value)}
+          placeholder={period === 'annual' ? 'e.g. 42000' : 'e.g. 3500'}
+          className="w-full h-11 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[12px] px-4 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-4)] focus:border-[var(--color-mint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-mint-soft)]"
         />
-        <Input
+        {amount && parseFloat(amount) > 0 && (
+          <p className="text-xs text-[var(--color-text-4)] mt-1.5">
+            {period === 'annual'
+              ? `≈ £${(parseFloat(amount) / 12).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month`
+              : `≈ £${(parseFloat(amount) * 12).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / year`}
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Select
           label="Pay day"
-          type="number"
-          min="1"
-          max="31"
-          value={payDay}
-          onChange={e => setPayDay(e.target.value)}
+          value={payDayType}
+          onChange={e => setPayDayType(e.target.value as PayDayType)}
+          options={[
+            { value: 'day', label: 'Fixed day of month' },
+            { value: 'last-working', label: 'Last working day of month' },
+            { value: 'working-before', label: 'Working day before a date' },
+          ]}
         />
+        {payDayType === 'day' && (
+          <Input
+            label="Day of month"
+            type="number"
+            min="1"
+            max="31"
+            value={payDay}
+            onChange={e => setPayDay(e.target.value)}
+            hint="e.g. 28 — paid on the 28th every month"
+          />
+        )}
+        {payDayType === 'working-before' && (
+          <Input
+            label="Target date (working day on or before)"
+            type="number"
+            min="1"
+            max="31"
+            value={payDay}
+            onChange={e => setPayDay(e.target.value)}
+            hint="e.g. 15 — paid on the 15th, or the previous Mon-Fri if it's a weekend"
+          />
+        )}
+        {payDayType === 'last-working' && (
+          <div className="text-xs text-[var(--color-text-3)] self-end pb-3">
+            Paid on the last Monday-Friday of each month
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4">
         <Select
           label="Salary hits account"
           value={accountId}
@@ -256,8 +355,9 @@ function SalaryProfileForm({
           ]}
         />
       </div>
+
       <div className="mt-4">
-        <Button variant="primary" size="sm" onClick={submit} disabled={saving || !base}>
+        <Button variant="primary" size="sm" onClick={submit} disabled={saving || !amount}>
           {saving ? 'Saving…' : entry.profile ? 'Update' : 'Create profile'}
         </Button>
       </div>

@@ -287,12 +287,24 @@ function SalaryCard({
 }: {
   widget: {
     userId: number; displayName: string; baseMonthly: number; actualMonth: number;
-    variance: number; payDay?: number;
+    variance: number; payDay?: number; payDayType?: 'day' | 'last-working' | 'working-before';
   };
 }) {
   const progress = widget.baseMonthly > 0 ? Math.min(widget.actualMonth / widget.baseMonthly, 1.5) : 0;
   const barWidth = Math.min(progress * 100, 100);
   const overshoot = progress > 1;
+
+  const ordinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const payDayLabel = (() => {
+    if (widget.payDayType === 'last-working') return 'Last working day of each month';
+    if (widget.payDayType === 'working-before') return `On or before the ${ordinal(widget.payDay ?? 28)} (working days)`;
+    return `The ${ordinal(widget.payDay ?? 28)} of each month`;
+  })();
 
   return (
     <Card>
@@ -305,9 +317,7 @@ function SalaryCard({
             <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold">
               {widget.displayName}'s salary
             </div>
-            <div className="text-xs text-[var(--color-text-3)]">
-              Pay day: {widget.payDay ?? 28} of each month
-            </div>
+            <div className="text-xs text-[var(--color-text-3)]">{payDayLabel}</div>
           </div>
         </div>
       </div>

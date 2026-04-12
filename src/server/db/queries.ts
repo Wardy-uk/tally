@@ -135,8 +135,8 @@ export const SalaryQueries = {
     ORDER BY effective_from DESC LIMIT 1
   `),
   create: db.prepare(`
-    INSERT INTO salary_profiles (user_id, base_salary_monthly, pay_day, account_id, effective_from)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO salary_profiles (user_id, base_salary_monthly, pay_day, pay_day_type, account_id, effective_from)
+    VALUES (?, ?, ?, ?, ?, ?)
   `),
   delete: db.prepare(`DELETE FROM salary_profiles WHERE id = ?`),
 };
