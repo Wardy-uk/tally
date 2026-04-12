@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle } from './ui/Card';
 import { Money, formatMoney } from './ui/Money';
 import { EmptyState } from './ui/EmptyState';
 import { useDashboard } from '../hooks/useDashboard';
+import { monthlyTakeHomeFromGross } from '../lib/uk-tax';
 
 function monthLabel(month: string): string {
   const d = new Date(`${month}-01`);
@@ -290,9 +291,13 @@ function SalaryCard({
     variance: number; payDay?: number; payDayType?: 'day' | 'last-working' | 'working-before';
   };
 }) {
-  const progress = widget.baseMonthly > 0 ? Math.min(widget.actualMonth / widget.baseMonthly, 1.5) : 0;
+  // baseMonthly from the API is GROSS (pre-tax). Compare actual (what lands
+  // in the bank) against estimated TAKE-HOME for a meaningful variance.
+  const expectedTakeHome = widget.baseMonthly > 0 ? monthlyTakeHomeFromGross(widget.baseMonthly) : 0;
+  const progress = expectedTakeHome > 0 ? Math.min(widget.actualMonth / expectedTakeHome, 1.5) : 0;
   const barWidth = Math.min(progress * 100, 100);
   const overshoot = progress > 1;
+  const variance = widget.actualMonth - expectedTakeHome;
 
   const ordinal = (n: number) => {
     const s = ['th', 'st', 'nd', 'rd'];
@@ -322,14 +327,19 @@ function SalaryCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold">Base</div>
-          <Money pence={widget.baseMonthly} size="lg" color="muted" />
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold">Gross</div>
+          <Money pence={widget.baseMonthly} size="md" color="muted" />
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold">Expected</div>
+          <Money pence={expectedTakeHome} size="md" color="muted" />
+          <div className="text-[9px] text-[var(--color-text-4)]">after tax & NI</div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold">Actual</div>
-          <Money pence={widget.actualMonth} size="lg" color="neutral" />
+          <Money pence={widget.actualMonth} size="md" color="neutral" />
         </div>
       </div>
 
@@ -345,15 +355,15 @@ function SalaryCard({
         />
       </div>
 
-      {widget.variance !== 0 && (
+      {variance !== 0 && (
         <div className="mt-2 text-xs">
-          {widget.variance > 0 ? (
+          {variance > 0 ? (
             <span className="text-[var(--color-mint)]">
-              +{formatMoney(widget.variance)} overtime/bonus
+              +{formatMoney(variance)} vs expected take-home (overtime/bonus)
             </span>
           ) : (
             <span className="text-[var(--color-amber)]">
-              {formatMoney(widget.variance, true)} below base
+              {formatMoney(variance, true)} below expected take-home
             </span>
           )}
         </div>

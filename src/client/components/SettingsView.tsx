@@ -12,6 +12,7 @@ import { Select } from './ui/Select';
 import { api, getToken } from '../lib/api';
 import { useAccounts } from '../hooks/useAccounts';
 import { PasswordInput } from './ui/PasswordInput';
+import { calcTakeHome } from '../lib/uk-tax';
 
 type PayDayType = 'day' | 'last-working' | 'working-before';
 
@@ -672,13 +673,37 @@ function SalaryProfileForm({
           placeholder={period === 'annual' ? 'e.g. 42000' : 'e.g. 3500'}
           className="w-full h-11 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[12px] px-4 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-4)] focus:border-[var(--color-mint)] focus:outline-none focus:ring-2 focus:ring-[var(--color-mint-soft)]"
         />
-        {amount && parseFloat(amount) > 0 && (
-          <p className="text-xs text-[var(--color-text-4)] mt-1.5">
-            {period === 'annual'
-              ? `≈ £${(parseFloat(amount) / 12).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month`
-              : `≈ £${(parseFloat(amount) * 12).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / year`}
-          </p>
-        )}
+        {amount && parseFloat(amount) > 0 && (() => {
+          const n = parseFloat(amount);
+          const annualGross = (period === 'annual' ? n : n * 12) * 100;
+          const th = calcTakeHome(annualGross);
+          const fmt = (p: number) => `£${(p / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          return (
+            <div className="mt-2 text-xs bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[10px] p-3 flex flex-col gap-1">
+              <div className="flex items-center justify-between text-[var(--color-text-3)]">
+                <span>{period === 'annual' ? 'Monthly gross' : 'Annual gross'}</span>
+                <span className="tabular">
+                  {period === 'annual' ? fmt(th.monthlyGross) : fmt(th.gross)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[var(--color-text-3)]">
+                <span>Income tax (approx)</span>
+                <span className="tabular text-[var(--color-coral)]">−{fmt(th.monthlyTax)}/mo</span>
+              </div>
+              <div className="flex items-center justify-between text-[var(--color-text-3)]">
+                <span>NI (approx)</span>
+                <span className="tabular text-[var(--color-coral)]">−{fmt(th.monthlyNi)}/mo</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 mt-1 border-t border-[var(--color-border)] font-semibold">
+                <span className="text-[var(--color-text-2)]">Take-home / month</span>
+                <span className="tabular text-[var(--color-mint)]">{fmt(th.monthlyTakeHome)}</span>
+              </div>
+              <div className="text-[10px] text-[var(--color-text-4)]">
+                2025/26 England/Wales/NI · Excludes pension, student loan, Scottish rates
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
