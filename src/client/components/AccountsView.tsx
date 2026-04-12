@@ -8,11 +8,11 @@ import { Select } from './ui/Select';
 import { Money } from './ui/Money';
 import { EmptyState } from './ui/EmptyState';
 import { useAccounts, Account, AccountInput } from '../hooks/useAccounts';
+import { useUsers } from '../hooks/useUsers';
 import type { AuthUser } from '../../shared/types';
 
 interface Props {
   user: AuthUser;
-  allUsers: { id: number; displayName: string }[];
 }
 
 const TYPE_ICON = {
@@ -31,8 +31,9 @@ const TYPE_LABEL = {
   investment: 'Investment',
 };
 
-export function AccountsView({ user, allUsers }: Props) {
+export function AccountsView({ user }: Props) {
   const { accounts, loading, create, update, archive } = useAccounts();
+  const allUsers = useUsers();
   const [editing, setEditing] = useState<Account | null>(null);
   const [creating, setCreating] = useState(false);
 

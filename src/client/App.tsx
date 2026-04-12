@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
-import { useUsers } from './hooks/useUsers';
 import { Login } from './components/Login';
 import { Sidebar, type View } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -19,7 +18,6 @@ import { Placeholder } from './components/Placeholder';
 export function App() {
   const { user, loading, hasUsers, login, register, logout } = useAuth();
   const [view, setView] = useState<View>('dashboard');
-  const allUsers = useUsers();
 
   if (loading) {
     return (
@@ -45,7 +43,7 @@ export function App() {
       <main className="flex-1 p-8 max-w-[1400px]">
         {view === 'dashboard' && <Dashboard />}
         {view === 'transactions' && <TransactionsView />}
-        {view === 'accounts' && <AccountsView user={user} allUsers={allUsers} />}
+        {view === 'accounts' && <AccountsView user={user} />}
         {view === 'import' && <ImportView />}
         {view === 'rules' && <RulesView />}
         {view === 'budgets' && <BudgetsView />}
