@@ -197,6 +197,38 @@ function buildSchema() {
       meta TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS truelayer_connections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider_id TEXT,
+      provider_name TEXT,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      scope TEXT,
+      connected_by_user_id INTEGER,
+      last_sync_at TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS truelayer_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      connection_id INTEGER NOT NULL,
+      external_id TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      account_type TEXT,
+      currency TEXT,
+      account_number TEXT,
+      sort_code TEXT,
+      linked_account_id INTEGER,
+      last_sync_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(connection_id, external_id),
+      FOREIGN KEY (connection_id) REFERENCES truelayer_connections(id) ON DELETE CASCADE,
+      FOREIGN KEY (linked_account_id) REFERENCES accounts(id) ON DELETE SET NULL
+    );
+
   `);
 
 }

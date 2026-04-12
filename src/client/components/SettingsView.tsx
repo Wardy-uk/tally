@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Key, Sparkles, CheckCircle2, XCircle, Save, Briefcase } from 'lucide-react';
+import {
+  Key, Sparkles, CheckCircle2, XCircle, Save, Briefcase, Building2,
+  Link2, Unlink, RefreshCw, Database, Download,
+} from 'lucide-react';
 import { Card, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
-import { api } from '../lib/api';
+import { api, getToken } from '../lib/api';
 import { useAccounts } from '../hooks/useAccounts';
 
 interface SalaryEntry {
@@ -125,6 +128,8 @@ export function SettingsView() {
       </Card>
 
       <SalarySection />
+      <TrueLayerSection />
+      <BackupSection />
     </div>
   );
 }
@@ -257,5 +262,324 @@ function SalaryProfileForm({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ===== TrueLayer Section =====
+
+interface TlStatus {
+  configured: boolean;
+  connections: Array<{
+    id: number;
+    provider_name: string;
+    last_sync_at: string | null;
+    created_at: string;
+    active: number;
+  }>;
+}
+
+interface TlAccountRow {
+  id: number;
+  connection_id: number;
+  external_id: string;
+  display_name: string;
+  account_type: string;
+  currency: string;
+  linked_account_id: number | null;
+  last_sync_at: string | null;
+}
+
+function TrueLayerSection() {
+  const { accounts } = useAccounts();
+  const [creds, setCreds] = useState({ clientId: '', clientSecret: '', redirectUri: '', sandbox: true });
+  const [status, setStatus] = useState<TlStatus | null>(null);
+  const [tlAccounts, setTlAccounts] = useState<Record<number, TlAccountRow[]>>({});
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const s = await api<TlStatus>('/truelayer/status');
+      setStatus(s);
+      // Load accounts for each connection
+      const byConn: Record<number, TlAccountRow[]> = {};
+      for (const c of s.connections) {
+        byConn[c.id] = await api<TlAccountRow[]>(`/truelayer/connections/${c.id}/accounts`);
+      }
+      setTlAccounts(byConn);
+    } catch {}
+  }, []);
+
+  const loadCreds = useCallback(async () => {
+    try {
+      const all = await api<Record<string, any>>('/settings/all');
+      setCreds({
+        clientId: all.truelayer_client_id ?? '',
+        clientSecret: all.truelayer_client_secret ?? '',
+        redirectUri: all.truelayer_redirect_uri ?? 'http://localhost:3002/api/truelayer/callback',
+        sandbox: all.truelayer_sandbox !== false,
+      });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadCreds();
+    loadStatus();
+
+    // Handle OAuth callback feedback in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tl_connected')) {
+      setFeedback('Bank account connected');
+      window.history.replaceState({}, '', '/');
+      loadStatus();
+    } else if (params.get('tl_error')) {
+      setFeedback(`Connection failed: ${params.get('tl_error')}`);
+      window.history.replaceState({}, '', '/');
+    }
+  }, [loadStatus, loadCreds]);
+
+  async function saveCreds() {
+    setSaving(true);
+    try {
+      await api('/settings/truelayer_client_id', { method: 'PUT', body: JSON.stringify({ value: creds.clientId }) });
+      await api('/settings/truelayer_client_secret', { method: 'PUT', body: JSON.stringify({ value: creds.clientSecret }) });
+      await api('/settings/truelayer_redirect_uri', { method: 'PUT', body: JSON.stringify({ value: creds.redirectUri }) });
+      await api('/settings/truelayer_sandbox', { method: 'PUT', body: JSON.stringify({ value: creds.sandbox }) });
+      await loadStatus();
+      setFeedback('Saved');
+      setTimeout(() => setFeedback(null), 3000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function startConnect() {
+    try {
+      const res = await api<{ url: string }>('/truelayer/auth-url');
+      window.location.href = res.url;
+    } catch (e: any) {
+      setFeedback(`Error: ${e.error ?? 'Could not start auth'}`);
+    }
+  }
+
+  async function sync() {
+    setSyncing(true);
+    try {
+      const res = await api<{ imported: number; skipped: number; errors: string[] }>(
+        '/truelayer/sync', { method: 'POST' },
+      );
+      setFeedback(`Synced: ${res.imported} new, ${res.skipped} dupes${res.errors.length ? `, ${res.errors.length} errors` : ''}`);
+      await loadStatus();
+    } catch (e: any) {
+      setFeedback(`Sync failed: ${e.error}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setFeedback(null), 5000);
+    }
+  }
+
+  async function disconnect(id: number) {
+    if (!confirm('Remove this bank connection? Transactions already synced will remain.')) return;
+    await api(`/truelayer/connections/${id}`, { method: 'DELETE' });
+    await loadStatus();
+  }
+
+  async function linkAccount(tlAcctId: number, tallyAccountId: number | null) {
+    await api('/truelayer/link', {
+      method: 'POST',
+      body: JSON.stringify({ truelayerAccountId: tlAcctId, tallyAccountId }),
+    });
+    await loadStatus();
+  }
+
+  return (
+    <Card padding="lg">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--color-sky-soft)] text-[var(--color-sky)] flex items-center justify-center">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <CardTitle subtitle="Live bank sync via Open Banking — no more CSV imports">
+            TrueLayer (Open Banking)
+          </CardTitle>
+        </div>
+      </CardHeader>
+
+      {feedback && (
+        <div className="mb-4 text-xs px-3 py-2 rounded-[10px] bg-[var(--color-mint-soft)] border border-[rgba(74,222,128,0.25)] text-[var(--color-mint)]">
+          {feedback}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Client ID"
+          value={creds.clientId}
+          onChange={e => setCreds({ ...creds, clientId: e.target.value })}
+          placeholder="tl-client-xxx"
+        />
+        <Input
+          label="Client Secret"
+          type="password"
+          value={creds.clientSecret}
+          onChange={e => setCreds({ ...creds, clientSecret: e.target.value })}
+        />
+        <Input
+          label="Redirect URI"
+          value={creds.redirectUri}
+          onChange={e => setCreds({ ...creds, redirectUri: e.target.value })}
+          hint="Must match one of the redirect URIs registered in the TrueLayer console"
+        />
+        <Select
+          label="Mode"
+          value={creds.sandbox ? 'sandbox' : 'live'}
+          onChange={e => setCreds({ ...creds, sandbox: e.target.value === 'sandbox' })}
+          options={[
+            { value: 'sandbox', label: 'Sandbox (test data, no real accounts)' },
+            { value: 'live', label: 'Live (real bank accounts)' },
+          ]}
+        />
+
+        <div className="flex items-center gap-3">
+          <Button variant="primary" onClick={saveCreds} disabled={saving} icon={<Save className="w-4 h-4" />}>
+            Save
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={startConnect}
+            disabled={!status?.configured}
+            icon={<Link2 className="w-4 h-4" />}
+          >
+            Connect bank
+          </Button>
+          {status && status.connections.length > 0 && (
+            <Button variant="ghost" onClick={sync} disabled={syncing} icon={<RefreshCw className="w-4 h-4" />}>
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </Button>
+          )}
+        </div>
+
+        {status && status.connections.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3">
+            {status.connections.map(c => (
+              <div key={c.id} className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[14px] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="text-sm font-semibold">{c.provider_name}</div>
+                    <div className="text-xs text-[var(--color-text-3)]">
+                      {c.last_sync_at
+                        ? `Last synced ${new Date(c.last_sync_at).toLocaleString()}`
+                        : 'Never synced'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => disconnect(c.id)}
+                    className="w-8 h-8 rounded-lg hover:bg-[var(--color-coral-soft)] text-[var(--color-text-3)] hover:text-[var(--color-coral)] flex items-center justify-center"
+                    title="Disconnect"
+                  >
+                    <Unlink className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {(tlAccounts[c.id] ?? []).length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {tlAccounts[c.id].map(a => (
+                      <div key={a.id} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm truncate">{a.display_name}</div>
+                          <div className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wider">
+                            {a.account_type} · {a.currency}
+                          </div>
+                        </div>
+                        <Select
+                          value={String(a.linked_account_id ?? '')}
+                          onChange={e => linkAccount(a.id, e.target.value ? Number(e.target.value) : null)}
+                          options={[
+                            { value: '', label: '— not linked —' },
+                            ...accounts.map(acc => ({ value: String(acc.id), label: acc.name })),
+                          ]}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ===== Backup Section =====
+
+interface BackupFile {
+  filename: string;
+  size: number;
+  mtime: string;
+}
+
+function BackupSection() {
+  const [backups, setBackups] = useState<BackupFile[]>([]);
+  const [creating, setCreating] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setBackups(await api<BackupFile[]>('/backup'));
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function create() {
+    setCreating(true);
+    try {
+      await api('/backup', { method: 'POST' });
+      await load();
+    } finally { setCreating(false); }
+  }
+
+  function downloadExport() {
+    const token = getToken();
+    window.open(`/api/backup/export?token=${token}`, '_blank');
+  }
+
+  return (
+    <Card padding="lg">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--color-amber-soft)] text-[var(--color-amber)] flex items-center justify-center">
+            <Database className="w-5 h-5" />
+          </div>
+          <CardTitle subtitle="Daily auto-backups with 14-day rotation. Manual export available.">
+            Backups
+          </CardTitle>
+        </div>
+      </CardHeader>
+
+      <div className="flex gap-2 mb-4">
+        <Button variant="primary" onClick={create} disabled={creating} icon={<Database className="w-4 h-4" />}>
+          {creating ? 'Creating…' : 'Create backup now'}
+        </Button>
+        <Button variant="secondary" onClick={downloadExport} icon={<Download className="w-4 h-4" />}>
+          Export JSON
+        </Button>
+      </div>
+
+      {backups.length === 0 ? (
+        <div className="text-xs text-[var(--color-text-3)]">No backups yet</div>
+      ) : (
+        <div className="flex flex-col gap-1 text-xs">
+          {backups.slice(0, 8).map(b => (
+            <div key={b.filename} className="flex items-center justify-between py-1.5 text-[var(--color-text-3)]">
+              <span className="mono">{b.filename}</span>
+              <span>{(b.size / 1024).toFixed(1)} KB</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }

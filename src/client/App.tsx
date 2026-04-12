@@ -13,6 +13,7 @@ import { SubscriptionsView } from './components/SubscriptionsView';
 import { BudgetsView } from './components/BudgetsView';
 import { InsightsView } from './components/InsightsView';
 import { ChatView } from './components/ChatView';
+import { ReceiptsView } from './components/ReceiptsView';
 import { Placeholder } from './components/Placeholder';
 
 export function App() {
@@ -51,7 +52,7 @@ export function App() {
         {view === 'insights' && <InsightsView />}
         {view === 'chat' && <ChatView />}
         {view === 'subscriptions' && <SubscriptionsView />}
-        {view === 'receipts' && <Placeholder title="Receipts" description="Upload and match receipts to transactions" />}
+        {view === 'receipts' && <ReceiptsView />}
         {view === 'settings' && <SettingsView />}
       </main>
     </div>
