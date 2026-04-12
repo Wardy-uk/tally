@@ -39,8 +39,9 @@ export function createDashboardRoutes() {
       WHERE is_transfer = 0 AND amount < 0 AND date >= ? AND date <= ?
     `).get(`${prevMonth}-01`, `${prevMonth}-31`) as { t: number }).t;
 
-    // 6-month trend (income + expense per month)
-    const trend: Array<{ month: string; income: number; expense: number }> = [];
+    // 6-month trend (income + expense per month) — skip leading empty months
+    // (we can't go back further than ~90 days with Open Banking).
+    const fullTrend: Array<{ month: string; income: number; expense: number }> = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(`${month}-01`);
       d.setMonth(d.getMonth() - i);
@@ -53,8 +54,11 @@ export function createDashboardRoutes() {
         SELECT COALESCE(SUM(amount), 0) AS t FROM transactions
         WHERE is_transfer = 0 AND amount < 0 AND date >= ? AND date <= ?
       `).get(`${m}-01`, `${m}-31`) as { t: number }).t;
-      trend.push({ month: m, income: inc, expense: Math.abs(exp) });
+      fullTrend.push({ month: m, income: inc, expense: Math.abs(exp) });
     }
+    // Drop leading months with no activity (keeps trailing empty months — they're meaningful)
+    const firstIdx = fullTrend.findIndex(t => t.income > 0 || t.expense > 0);
+    const trend = firstIdx < 0 ? [] : fullTrend.slice(firstIdx);
 
     // Category breakdown this month
     const byCategory = db.prepare(`
