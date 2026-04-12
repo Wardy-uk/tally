@@ -10,6 +10,11 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3003,
+        // Tailscale Serve's /tally mount strips the prefix before forwarding,
+        // so the Express app serves /api/* directly.
+        API_PREFIX: '',
+        // Where the OAuth callback should redirect after TrueLayer consent.
+        FRONTEND_URL: 'https://tally.nickward.co.uk',
       },
       max_memory_restart: '500M',
       error_file: 'logs/err.log',

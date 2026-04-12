@@ -30,39 +30,39 @@ initSchema();
 const app = express();
 const PORT = Number(process.env.PORT ?? 3002);
 
-app.use(cors());
+// Optional path prefix for when running behind a reverse proxy that mounts us
+// under a sub-path (e.g. Tailscale Serve /tally -> this server). Set via env.
+// Example: API_PREFIX=/tally  ->  routes become /tally/api/*
+const API_PREFIX = process.env.API_PREFIX ?? '';
+const p = (route: string) => `${API_PREFIX}${route}`;
+
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '25mb' }));
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, data: { status: 'ok', time: new Date().toISOString() } });
+app.get(p('/api/health'), (_req, res) => {
+  res.json({ ok: true, data: { status: 'ok', time: new Date().toISOString(), prefix: API_PREFIX } });
 });
 
-app.use('/api/auth', createAuthRoutes());
-app.use('/api/settings', createSettingsRoutes());
-app.use('/api/accounts', createAccountsRoutes());
-app.use('/api/categories', createCategoriesRoutes());
-app.use('/api/transactions', createTransactionsRoutes());
-app.use('/api/import', createImportRoutes());
-app.use('/api/salary', createSalaryRoutes());
-app.use('/api/rules', createRulesRoutes());
-app.use('/api/ai', createAiRoutes());
-app.use('/api/subscriptions', createSubscriptionsRoutes());
-app.use('/api/dashboard', createDashboardRoutes());
-app.use('/api/budgets', createBudgetsRoutes());
-app.use('/api/insights', createInsightsRoutes());
-app.use('/api/chat', createChatRoutes());
-app.use('/api/truelayer', createTrueLayerRoutes());
-app.use('/api/receipts', createReceiptsRoutes());
-app.use('/api/backup', createBackupRoutes());
+app.use(p('/api/auth'), createAuthRoutes());
+app.use(p('/api/settings'), createSettingsRoutes());
+app.use(p('/api/accounts'), createAccountsRoutes());
+app.use(p('/api/categories'), createCategoriesRoutes());
+app.use(p('/api/transactions'), createTransactionsRoutes());
+app.use(p('/api/import'), createImportRoutes());
+app.use(p('/api/salary'), createSalaryRoutes());
+app.use(p('/api/rules'), createRulesRoutes());
+app.use(p('/api/ai'), createAiRoutes());
+app.use(p('/api/subscriptions'), createSubscriptionsRoutes());
+app.use(p('/api/dashboard'), createDashboardRoutes());
+app.use(p('/api/budgets'), createBudgetsRoutes());
+app.use(p('/api/insights'), createInsightsRoutes());
+app.use(p('/api/chat'), createChatRoutes());
+app.use(p('/api/truelayer'), createTrueLayerRoutes());
+app.use(p('/api/receipts'), createReceiptsRoutes());
+app.use(p('/api/backup'), createBackupRoutes());
 
-// Serve client build in production
-if (process.env.NODE_ENV === 'production') {
-  const clientDir = path.resolve(__dirname, '../client');
-  app.use(express.static(clientDir));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(clientDir, 'index.html'));
-  });
-}
+// Note: in production the frontend is hosted on Netlify and proxies /api/*
+// calls back here, so the server does NOT serve static files.
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[error]', err);

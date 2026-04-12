@@ -48,11 +48,13 @@ export function createTrueLayerRoutes() {
   router.get('/callback', async (req, res) => {
     const { code, state, error: oauthError } = req.query as Record<string, string>;
 
+    const frontendUrl = process.env.FRONTEND_URL ?? '';
+
     if (oauthError) {
-      return res.redirect(`/?tl_error=${encodeURIComponent(oauthError)}`);
+      return res.redirect(`${frontendUrl}/?tl_error=${encodeURIComponent(oauthError)}`);
     }
     if (!code || !state || !pendingStates.has(state)) {
-      return res.redirect(`/?tl_error=invalid_state`);
+      return res.redirect(`${frontendUrl}/?tl_error=invalid_state`);
     }
 
     const pending = pendingStates.get(state)!;
@@ -92,10 +94,10 @@ export function createTrueLayerRoutes() {
         );
       }
 
-      res.redirect('/?tl_connected=1');
+      res.redirect(`${frontendUrl}/?tl_connected=1`);
     } catch (e: any) {
       console.error('[truelayer callback]', e);
-      res.redirect(`/?tl_error=${encodeURIComponent(e.message ?? 'exchange_failed')}`);
+      res.redirect(`${frontendUrl}/?tl_error=${encodeURIComponent(e.message ?? 'exchange_failed')}`);
     }
   });
 
