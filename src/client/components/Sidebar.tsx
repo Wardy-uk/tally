@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Upload, PieChart,
-  Sparkles, Repeat, Receipt, Settings, LogOut, MessageSquare, Zap,
+  Sparkles, Repeat, Receipt, Settings, LogOut, MessageSquare, Zap, RefreshCw,
 } from 'lucide-react';
 import type { AuthUser } from '../../shared/types';
 
@@ -54,7 +54,16 @@ export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
         <NavGroup title="System" items={groups.system} view={view} onNavigate={onNavigate} />
       </nav>
 
-      <div className="p-3 border-t border-[var(--color-border)]">
+      <div className="p-3 border-t border-[var(--color-border)] flex flex-col gap-2">
+        <button
+          onClick={() => window.location.reload()}
+          className="flex items-center justify-center gap-2 h-9 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-mint)] hover:border-[rgba(74,222,128,0.3)] transition"
+          title="Refresh data (reload app)"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
+
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[var(--color-bg-elevated)]">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-violet)] to-[var(--color-sky)] flex items-center justify-center text-xs font-bold text-white">
             {user.displayName.charAt(0).toUpperCase()}
