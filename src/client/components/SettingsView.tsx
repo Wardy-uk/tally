@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Key, Sparkles, CheckCircle2, XCircle, Save, Briefcase, Building2,
-  Link2, Unlink, RefreshCw, Database, Download,
+  Link2, Unlink, RefreshCw, Database, Download, Users, UserPlus, Trash2, Shield, Lock,
 } from 'lucide-react';
+import { Modal } from './ui/Modal';
 import { Card, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -130,10 +131,286 @@ export function SettingsView() {
         </div>
       </Card>
 
+      <UsersSection />
       <SalarySection />
       <TrueLayerSection />
       <BackupSection />
     </div>
+  );
+}
+
+// ===== Users Section =====
+
+interface UserRow {
+  id: number;
+  username: string;
+  display_name: string;
+  role: 'admin' | 'user';
+  created_at: string;
+}
+
+function UsersSection() {
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [resetting, setResetting] = useState<UserRow | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setUsers(await api<UserRow[]>('/auth/users'));
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function del(u: UserRow) {
+    if (!confirm(`Delete ${u.display_name}? This cannot be undone.`)) return;
+    try {
+      await api(`/auth/users/${u.id}`, { method: 'DELETE' });
+      await load();
+    } catch (e: any) {
+      setError(e.error ?? 'Delete failed');
+      setTimeout(() => setError(null), 4000);
+    }
+  }
+
+  async function toggleRole(u: UserRow) {
+    const newRole = u.role === 'admin' ? 'user' : 'admin';
+    await api(`/auth/users/${u.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ displayName: u.display_name, role: newRole }),
+    });
+    await load();
+  }
+
+  return (
+    <Card padding="lg">
+      <CardHeader>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-sky-soft)] text-[var(--color-sky)] flex items-center justify-center">
+              <Users className="w-5 h-5" />
+            </div>
+            <CardTitle subtitle="Add family members or other admins">Users</CardTitle>
+          </div>
+          <Button variant="primary" size="sm" icon={<UserPlus className="w-4 h-4" />} onClick={() => setAdding(true)}>
+            Add user
+          </Button>
+        </div>
+      </CardHeader>
+
+      {error && (
+        <div className="mb-4 text-xs px-3 py-2 rounded-[10px] bg-[var(--color-coral-soft)] border border-[rgba(251,113,133,0.25)] text-[var(--color-coral)]">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-sm text-[var(--color-text-3)]">Loading…</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {users.map(u => (
+            <div key={u.id} className="flex items-center gap-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[14px] p-4 group">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[var(--color-violet)] to-[var(--color-sky)] flex items-center justify-center text-sm font-bold text-white shrink-0">
+                {u.display_name.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">{u.display_name}</div>
+                <div className="text-xs text-[var(--color-text-3)] flex items-center gap-2">
+                  <span>@{u.username}</span>
+                  <span>·</span>
+                  <button
+                    onClick={() => toggleRole(u)}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] uppercase tracking-wider font-semibold transition ${
+                      u.role === 'admin'
+                        ? 'bg-[var(--color-mint-soft)] text-[var(--color-mint)] hover:brightness-110'
+                        : 'bg-[var(--color-surface)] text-[var(--color-text-3)] hover:text-[var(--color-text)]'
+                    }`}
+                    title="Click to toggle role"
+                  >
+                    {u.role === 'admin' && <Shield className="w-2.5 h-2.5" />}
+                    {u.role}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button
+                  onClick={() => setResetting(u)}
+                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-3)] hover:text-[var(--color-amber)] flex items-center justify-center"
+                  title="Reset password"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => del(u)}
+                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-coral-soft)] text-[var(--color-text-3)] hover:text-[var(--color-coral)] flex items-center justify-center"
+                  title="Delete user"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AddUserModal open={adding} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load(); }} />
+      <ResetPasswordModal user={resetting} onClose={() => setResetting(null)} />
+    </Card>
+  );
+}
+
+function AddUserModal({
+  open, onClose, onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset form when the modal opens
+  useEffect(() => {
+    if (open) {
+      setUsername(''); setDisplayName(''); setPassword(''); setRole('user'); setError(null);
+    }
+  }, [open]);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api('/auth/users', {
+        method: 'POST',
+        body: JSON.stringify({ username, displayName, password, role }),
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e.error ?? 'Failed to create user');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add user"
+      subtitle="Create a login for a family member or another admin"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            onClick={submit}
+            disabled={!username || !password || password.length < 6 || busy}
+          >
+            {busy ? 'Creating…' : 'Create user'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Display name"
+          value={displayName}
+          onChange={e => setDisplayName(e.target.value)}
+          placeholder="e.g. Sarah"
+          autoFocus
+        />
+        <Input
+          label="Username"
+          value={username}
+          onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+          placeholder="sarah"
+          hint="Lowercase, no spaces — used to sign in"
+        />
+        <Input
+          label="Password"
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="At least 6 characters"
+          hint="They can change it after signing in"
+        />
+        <Select
+          label="Role"
+          value={role}
+          onChange={e => setRole(e.target.value as 'user' | 'admin')}
+          options={[
+            { value: 'user', label: 'User — can view and edit' },
+            { value: 'admin', label: 'Admin — full access including settings' },
+          ]}
+        />
+        {error && (
+          <div className="text-sm text-[var(--color-coral)] bg-[var(--color-coral-soft)] border border-[rgba(251,113,133,0.2)] rounded-[12px] px-3 py-2">
+            {error}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function ResetPasswordModal({
+  user, onClose,
+}: {
+  user: UserRow | null;
+  onClose: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (user) { setPassword(''); setDone(false); }
+  }, [user]);
+
+  async function submit() {
+    if (!user) return;
+    setBusy(true);
+    try {
+      await api(`/auth/users/${user.id}/password`, {
+        method: 'PATCH',
+        body: JSON.stringify({ password }),
+      });
+      setDone(true);
+      setTimeout(onClose, 1500);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal
+      open={!!user}
+      onClose={onClose}
+      title={`Reset password${user ? ` for ${user.display_name}` : ''}`}
+      subtitle="They'll be able to sign in with the new password immediately"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={submit} disabled={password.length < 6 || busy || done}>
+            {busy ? 'Saving…' : done ? 'Saved' : 'Reset password'}
+          </Button>
+        </>
+      }
+    >
+      <Input
+        label="New password"
+        type="password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        placeholder="At least 6 characters"
+        autoFocus
+      />
+    </Modal>
   );
 }
 
