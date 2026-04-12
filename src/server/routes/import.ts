@@ -7,6 +7,7 @@ import { TransactionQueries, ImportBatchQueries, AccountQueries } from '../db/qu
 import { db } from '../db/schema.js';
 import { applyRulesToTxIds } from '../services/rules-engine.js';
 import { detectTransfers } from '../services/transfer-detector.js';
+import { refreshRecurringTable } from '../services/recurring-detector.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -128,6 +129,9 @@ export function createImportRoutes() {
     // Detect transfers across the whole DB (cheap for typical sizes)
     const transfersDetected = detectTransfers(3);
 
+    // Refresh recurring charges table
+    const recurringDetected = refreshRecurringTable();
+
     // Update batch counts
     db.prepare('UPDATE import_batches SET imported_count = ?, skipped_count = ? WHERE id = ?')
       .run(imported, skipped, batchId);
@@ -141,6 +145,7 @@ export function createImportRoutes() {
         errors: parsed.errors.length,
         rulesApplied,
         transfersDetected,
+        recurringDetected,
       },
     });
   });

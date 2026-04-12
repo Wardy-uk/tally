@@ -1,10 +1,24 @@
-import { useEffect, useState } from 'react';
-import { Key, Sparkles, CheckCircle2, XCircle, Save } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Key, Sparkles, CheckCircle2, XCircle, Save, Briefcase } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { api } from '../lib/api';
+import { useAccounts } from '../hooks/useAccounts';
+
+interface SalaryEntry {
+  userId: number;
+  username: string;
+  displayName: string;
+  profile: {
+    id: number;
+    baseSalaryMonthly: number;
+    payDay: number;
+    accountId: number | null;
+    effectiveFrom: string;
+  } | null;
+}
 
 export function SettingsView() {
   const [allSettings, setAllSettings] = useState<Record<string, any>>({});
@@ -109,6 +123,139 @@ export function SettingsView() {
           </div>
         </div>
       </Card>
+
+      <SalarySection />
+    </div>
+  );
+}
+
+function SalarySection() {
+  const { accounts } = useAccounts();
+  const [entries, setEntries] = useState<SalaryEntry[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api<SalaryEntry[]>('/salary');
+      setEntries(data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function saveProfile(userId: number, base: number, payDay: number, accountId: number | null) {
+    await api('/salary', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        baseSalaryMonthly: base,
+        payDay,
+        accountId,
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+      }),
+    });
+    await load();
+  }
+
+  return (
+    <Card padding="lg">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--color-mint-soft)] text-[var(--color-mint)] flex items-center justify-center">
+            <Briefcase className="w-5 h-5" />
+          </div>
+          <CardTitle subtitle="Base monthly salary vs actual — tracks overtime & bonuses">
+            Salary profiles
+          </CardTitle>
+        </div>
+      </CardHeader>
+
+      <div className="flex flex-col gap-6">
+        {entries.map(e => (
+          <SalaryProfileForm
+            key={e.userId}
+            entry={e}
+            accounts={accounts.map(a => ({ id: a.id, name: a.name }))}
+            onSave={(base, payDay, accId) => saveProfile(e.userId, base, payDay, accId)}
+          />
+        ))}
+        {entries.length === 0 && (
+          <div className="text-sm text-[var(--color-text-3)]">No users yet</div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function SalaryProfileForm({
+  entry, accounts, onSave,
+}: {
+  entry: SalaryEntry;
+  accounts: Array<{ id: number; name: string }>;
+  onSave: (base: number, payDay: number, accountId: number | null) => Promise<void>;
+}) {
+  const [base, setBase] = useState(
+    entry.profile ? (entry.profile.baseSalaryMonthly / 100).toFixed(2) : '',
+  );
+  const [payDay, setPayDay] = useState(String(entry.profile?.payDay ?? 28));
+  const [accountId, setAccountId] = useState(String(entry.profile?.accountId ?? ''));
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    setSaving(true);
+    try {
+      await onSave(
+        Math.round(parseFloat(base || '0') * 100),
+        Number(payDay),
+        accountId ? Number(accountId) : null,
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[16px] p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-violet)] to-[var(--color-sky)] flex items-center justify-center text-sm font-bold text-white">
+          {entry.displayName.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <div className="text-sm font-semibold">{entry.displayName}</div>
+          <div className="text-xs text-[var(--color-text-3)]">@{entry.username}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Input
+          label="Base salary (£/month)"
+          type="number"
+          step="0.01"
+          value={base}
+          onChange={e => setBase(e.target.value)}
+          placeholder="0.00"
+        />
+        <Input
+          label="Pay day"
+          type="number"
+          min="1"
+          max="31"
+          value={payDay}
+          onChange={e => setPayDay(e.target.value)}
+        />
+        <Select
+          label="Salary hits account"
+          value={accountId}
+          onChange={e => setAccountId(e.target.value)}
+          options={[
+            { value: '', label: '— none —' },
+            ...accounts.map(a => ({ value: String(a.id), label: a.name })),
+          ]}
+        />
+      </div>
+      <div className="mt-4">
+        <Button variant="primary" size="sm" onClick={submit} disabled={saving || !base}>
+          {saving ? 'Saving…' : entry.profile ? 'Update' : 'Create profile'}
+        </Button>
+      </div>
     </div>
   );
 }

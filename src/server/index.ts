@@ -12,6 +12,8 @@ import { createImportRoutes } from './routes/import.js';
 import { createSalaryRoutes } from './routes/salary.js';
 import { createRulesRoutes } from './routes/rules.js';
 import { createAiRoutes } from './routes/ai.js';
+import { createSubscriptionsRoutes } from './routes/subscriptions.js';
+import { createDashboardRoutes } from './routes/dashboard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,6 +38,8 @@ app.use('/api/import', createImportRoutes());
 app.use('/api/salary', createSalaryRoutes());
 app.use('/api/rules', createRulesRoutes());
 app.use('/api/ai', createAiRoutes());
+app.use('/api/subscriptions', createSubscriptionsRoutes());
+app.use('/api/dashboard', createDashboardRoutes());
 
 // Serve client build in production
 if (process.env.NODE_ENV === 'production') {
