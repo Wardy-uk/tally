@@ -329,17 +329,18 @@ function UsersSection() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setResetting(u)}
-                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-3)] hover:text-[var(--color-amber)] flex items-center justify-center"
+                  className="h-8 px-3 rounded-lg bg-[var(--color-amber-soft)] text-[var(--color-amber)] hover:brightness-110 border border-[rgba(251,191,36,0.25)] flex items-center gap-1.5 text-xs font-semibold transition"
                   title="Reset password"
                 >
                   <Lock className="w-3.5 h-3.5" />
+                  Reset password
                 </button>
                 <button
                   onClick={() => del(u)}
-                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-coral-soft)] text-[var(--color-text-3)] hover:text-[var(--color-coral)] flex items-center justify-center"
+                  className="w-8 h-8 rounded-lg hover:bg-[var(--color-coral-soft)] text-[var(--color-text-3)] hover:text-[var(--color-coral)] border border-transparent hover:border-[rgba(251,113,133,0.2)] flex items-center justify-center transition"
                   title="Delete user"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
