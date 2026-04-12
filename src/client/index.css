@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Core palette — dark first */
+  --color-bg: #0a0e1a;
+  --color-bg-elevated: #111827;
+  --color-surface: #161d2e;
+  --color-surface-2: #1c2438;
+  --color-border: #242d44;
+  --color-border-strong: #2e3a55;
+
+  --color-text: #f1f5f9;
+  --color-text-2: #cbd5e1;
+  --color-text-3: #94a3b8;
+  --color-text-4: #64748b;
+
+  /* Accents — distinct from nurtur teal */
+  --color-mint: #4ade80;
+  --color-mint-soft: rgba(74, 222, 128, 0.12);
+  --color-coral: #fb7185;
+  --color-coral-soft: rgba(251, 113, 133, 0.12);
+  --color-amber: #fbbf24;
+  --color-amber-soft: rgba(251, 191, 36, 0.12);
+  --color-violet: #a78bfa;
+  --color-violet-soft: rgba(167, 139, 250, 0.12);
+  --color-sky: #38bdf8;
+  --color-sky-soft: rgba(56, 189, 248, 0.12);
+
+  --color-primary: #4ade80;
+  --color-primary-soft: rgba(74, 222, 128, 0.12);
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01", "ss03";
+}
+
+/* Ambient glow — subtle, premium feel */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 0%, rgba(74, 222, 128, 0.06), transparent 60%),
+    radial-gradient(ellipse 70% 60% at 85% 100%, rgba(167, 139, 250, 0.05), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(56, 189, 248, 0.03), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* Monetary text — tabular numbers */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 10px;
+  border: 2px solid var(--color-bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-border-strong); }
+
+/* Selection */
+::selection {
+  background: rgba(74, 222, 128, 0.25);
+  color: var(--color-text);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Card entrance */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

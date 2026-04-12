@@ -1,0 +1,42 @@
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { initSchema } from './db/schema.js';
+import { createAuthRoutes } from './routes/auth.js';
+import { createSettingsRoutes } from './routes/settings.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+initSchema();
+
+const app = express();
+const PORT = Number(process.env.PORT ?? 3002);
+
+app.use(cors());
+app.use(express.json({ limit: '25mb' }));
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, data: { status: 'ok', time: new Date().toISOString() } });
+});
+
+app.use('/api/auth', createAuthRoutes());
+app.use('/api/settings', createSettingsRoutes());
+
+// Serve client build in production
+if (process.env.NODE_ENV === 'production') {
+  const clientDir = path.resolve(__dirname, '../client');
+  app.use(express.static(clientDir));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDir, 'index.html'));
+  });
+}
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[error]', err);
+  res.status(500).json({ ok: false, error: err.message ?? 'Internal error' });
+});
+
+app.listen(PORT, () => {
+  console.log(`[tally] api ready on :${PORT}`);
+});
