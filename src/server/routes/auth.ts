@@ -67,5 +67,10 @@ export function createAuthRoutes() {
     res.json({ ok: true, data: req.user });
   });
 
+  router.get('/users', requireAuth, (_req, res) => {
+    const rows = UserQueries.list.all();
+    res.json({ ok: true, data: rows });
+  });
+
   return router;
 }

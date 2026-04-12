@@ -5,6 +5,11 @@ import { fileURLToPath } from 'url';
 import { initSchema } from './db/schema.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createSettingsRoutes } from './routes/settings.js';
+import { createAccountsRoutes } from './routes/accounts.js';
+import { createCategoriesRoutes } from './routes/categories.js';
+import { createTransactionsRoutes } from './routes/transactions.js';
+import { createImportRoutes } from './routes/import.js';
+import { createSalaryRoutes } from './routes/salary.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +27,11 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', createAuthRoutes());
 app.use('/api/settings', createSettingsRoutes());
+app.use('/api/accounts', createAccountsRoutes());
+app.use('/api/categories', createCategoriesRoutes());
+app.use('/api/transactions', createTransactionsRoutes());
+app.use('/api/import', createImportRoutes());
+app.use('/api/salary', createSalaryRoutes());
 
 // Serve client build in production
 if (process.env.NODE_ENV === 'production') {
