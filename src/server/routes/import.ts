@@ -5,6 +5,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { parseCsv, BUILTIN_PROFILES, NATWEST_PROFILE, CsvProfile } from '../services/csv-parser.js';
 import { TransactionQueries, ImportBatchQueries, AccountQueries } from '../db/queries.js';
 import { db } from '../db/schema.js';
+import { applyRulesToTxIds } from '../services/rules-engine.js';
+import { detectTransfers } from '../services/transfer-detector.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -86,6 +88,7 @@ export function createImportRoutes() {
 
     let imported = 0;
     let skipped = 0;
+    const insertedIds: number[] = [];
 
     const batchResult = ImportBatchQueries.create.run(
       body.accountId,
@@ -106,10 +109,11 @@ export function createImportRoutes() {
           skipped++;
           continue;
         }
-        TransactionQueries.insert.run(
+        const result = TransactionQueries.insert.run(
           body.accountId, r.date, r.amount, r.description, r.merchant,
           null, 0, batchId, r.dedupeHash, r.balanceAfter,
         );
+        insertedIds.push(Number(result.lastInsertRowid));
         imported++;
       }
       db.exec('COMMIT');
@@ -117,6 +121,12 @@ export function createImportRoutes() {
       db.exec('ROLLBACK');
       throw e;
     }
+
+    // Auto-apply rules to newly-imported rows
+    const rulesApplied = applyRulesToTxIds(insertedIds);
+
+    // Detect transfers across the whole DB (cheap for typical sizes)
+    const transfersDetected = detectTransfers(3);
 
     // Update batch counts
     db.prepare('UPDATE import_batches SET imported_count = ?, skipped_count = ? WHERE id = ?')
@@ -129,6 +139,8 @@ export function createImportRoutes() {
         imported,
         skipped,
         errors: parsed.errors.length,
+        rulesApplied,
+        transfersDetected,
       },
     });
   });

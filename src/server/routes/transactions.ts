@@ -2,7 +2,23 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { db } from '../db/schema.js';
-import { TransactionQueries } from '../db/queries.js';
+import { TransactionQueries, RuleQueries } from '../db/queries.js';
+import { invalidateRuleCache } from '../services/rules-engine.js';
+
+/**
+ * Extract a useful merchant phrase from a transaction description.
+ * Strips card metadata, numbers, and common noise; keeps the first 2-3 meaningful words.
+ */
+function extractMerchantPhrase(description: string): string {
+  const cleaned = description
+    .replace(/\b(DEB|CR|POS|DD|SO|BGC|FPI|FPO|ATM|TFR|VIS)\b/gi, '')
+    .replace(/\d{6,}/g, '')
+    .replace(/[^a-zA-Z0-9&\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const words = cleaned.split(' ').filter(w => w.length > 1);
+  return words.slice(0, 2).join(' ') || description.slice(0, 20);
+}
 
 export function createTransactionsRoutes() {
   const router = Router();
@@ -79,6 +95,8 @@ export function createTransactionsRoutes() {
     const schema = z.object({
       categoryId: z.number().int().nullable().optional(),
       notes: z.string().nullable().optional(),
+      /** If true and categoryId is provided, also create a rule + apply to all similar. */
+      applyToSimilar: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.message });
@@ -89,7 +107,41 @@ export function createTransactionsRoutes() {
     if (parsed.data.notes !== undefined) {
       TransactionQueries.updateNotes.run(parsed.data.notes, id);
     }
-    res.json({ ok: true, data: TransactionQueries.findById.get(id) });
+
+    let appliedToSimilar = 0;
+    if (parsed.data.applyToSimilar && parsed.data.categoryId !== null && parsed.data.categoryId !== undefined) {
+      const tx = TransactionQueries.findById.get(id) as any;
+      if (tx) {
+        // Extract a sensible rule phrase from the description
+        const phrase = extractMerchantPhrase(tx.description);
+        // Create the rule
+        RuleQueries.create.run(
+          `Auto: ${phrase}`,
+          'description',
+          'contains',
+          phrase,
+          parsed.data.categoryId,
+          100,
+          req.user!.id,
+        );
+        invalidateRuleCache();
+
+        // Apply to all matching uncategorised transactions immediately
+        const result = db.prepare(`
+          UPDATE transactions
+          SET category_id = ?
+          WHERE category_id IS NULL
+            AND is_transfer = 0
+            AND LOWER(description) LIKE ?
+        `).run(parsed.data.categoryId, `%${phrase.toLowerCase()}%`);
+        appliedToSimilar = Number(result.changes);
+      }
+    }
+
+    res.json({
+      ok: true,
+      data: { ...(TransactionQueries.findById.get(id) as any), appliedToSimilar },
+    });
   });
 
   router.delete('/:id', requireAuth, (req, res) => {

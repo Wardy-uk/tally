@@ -10,6 +10,8 @@ import { createCategoriesRoutes } from './routes/categories.js';
 import { createTransactionsRoutes } from './routes/transactions.js';
 import { createImportRoutes } from './routes/import.js';
 import { createSalaryRoutes } from './routes/salary.js';
+import { createRulesRoutes } from './routes/rules.js';
+import { createAiRoutes } from './routes/ai.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +34,8 @@ app.use('/api/categories', createCategoriesRoutes());
 app.use('/api/transactions', createTransactionsRoutes());
 app.use('/api/import', createImportRoutes());
 app.use('/api/salary', createSalaryRoutes());
+app.use('/api/rules', createRulesRoutes());
+app.use('/api/ai', createAiRoutes());
 
 // Serve client build in production
 if (process.env.NODE_ENV === 'production') {

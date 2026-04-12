@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, X } from 'lucide-react';
-import { Card, CardHeader, CardTitle } from './ui/Card';
+import { Search, Filter, X, Sparkles, CheckSquare, Square, Wand2 } from 'lucide-react';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Money } from './ui/Money';
@@ -9,6 +10,7 @@ import { useAccounts } from '../hooks/useAccounts';
 import { useTransactions, TransactionRow } from '../hooks/useTransactions';
 import { useCategories } from '../hooks/useCategories';
 import { ArrowLeftRight } from 'lucide-react';
+import { api } from '../lib/api';
 
 export function TransactionsView() {
   const { accounts } = useAccounts();
@@ -20,6 +22,8 @@ export function TransactionsView() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [type, setType] = useState<string>('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
 
   const filter = useMemo(() => ({
     search: search || undefined,
@@ -31,12 +35,42 @@ export function TransactionsView() {
     limit: 200,
   }), [search, accountId, categoryId, dateFrom, dateTo, type]);
 
-  const { rows, total, loading, updateCategory } = useTransactions(filter);
+  const { rows, total, loading, refresh } = useTransactions(filter);
 
   const clearFilters = () => {
     setSearch(''); setAccountId(''); setCategoryId(''); setDateFrom(''); setDateTo(''); setType('');
   };
   const hasFilters = search || accountId || categoryId || dateFrom || dateTo || type;
+
+  async function runAiCategorise() {
+    setAiBusy(true);
+    setAiFeedback(null);
+    try {
+      const res = await api<{ categorised: number; skipped: number; errors: string[] }>(
+        '/ai/categorise', { method: 'POST', body: JSON.stringify({ limit: 100 }) },
+      );
+      if (res.errors.length > 0) {
+        setAiFeedback(`Error: ${res.errors[0]}`);
+      } else {
+        setAiFeedback(`Categorised ${res.categorised} transaction${res.categorised !== 1 ? 's' : ''}`);
+      }
+      await refresh();
+    } catch (e: any) {
+      setAiFeedback(`Error: ${e.error ?? 'AI categorisation failed'}`);
+    } finally {
+      setAiBusy(false);
+      setTimeout(() => setAiFeedback(null), 5000);
+    }
+  }
+
+  async function runTransferDetect() {
+    try {
+      const res = await api<{ pairs: number }>('/ai/detect-transfers', { method: 'POST' });
+      setAiFeedback(`Detected ${res.pairs} transfer pair${res.pairs !== 1 ? 's' : ''}`);
+      await refresh();
+      setTimeout(() => setAiFeedback(null), 5000);
+    } catch {}
+  }
 
   return (
     <div className="flex flex-col gap-6 fade-up">
@@ -47,7 +81,25 @@ export function TransactionsView() {
             {total} transaction{total !== 1 && 's'} across all accounts
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" icon={<ArrowLeftRight className="w-4 h-4" />} onClick={runTransferDetect}>
+            Detect transfers
+          </Button>
+          <Button variant="primary" icon={<Sparkles className="w-4 h-4" />} onClick={runAiCategorise} disabled={aiBusy}>
+            {aiBusy ? 'Thinking…' : 'AI categorise'}
+          </Button>
+        </div>
       </div>
+
+      {aiFeedback && (
+        <div className={`rounded-[12px] px-4 py-3 text-sm border ${
+          aiFeedback.startsWith('Error')
+            ? 'bg-[var(--color-coral-soft)] border-[rgba(251,113,133,0.25)] text-[var(--color-coral)]'
+            : 'bg-[var(--color-mint-soft)] border-[rgba(74,222,128,0.25)] text-[var(--color-mint)]'
+        }`}>
+          {aiFeedback}
+        </div>
+      )}
 
       <Card padding="md">
         <div className="flex flex-wrap items-end gap-3">
@@ -120,7 +172,7 @@ export function TransactionsView() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <TxRow key={r.id} r={r} categories={categories} onUpdateCategory={updateCategory} />
+                <TxRow key={r.id} r={r} categories={categories} onRefresh={refresh} />
               ))}
             </tbody>
           </table>
@@ -131,17 +183,32 @@ export function TransactionsView() {
 }
 
 function TxRow({
-  r, categories, onUpdateCategory,
+  r, categories, onRefresh,
 }: {
   r: TransactionRow;
   categories: Array<{ id: number; name: string; color: string | null }>;
-  onUpdateCategory: (id: number, categoryId: number | null) => Promise<void>;
+  onRefresh: () => void;
 }) {
+  const [applySimilar, setApplySimilar] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function changeCategory(newCategoryId: number | null) {
+    setBusy(true);
+    try {
+      await api(`/transactions/${r.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ categoryId: newCategoryId, applyToSimilar: applySimilar }),
+      });
+      await onRefresh();
+      setApplySimilar(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <tr className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition">
-      <td className="px-5 py-3.5 tabular text-[var(--color-text-3)] whitespace-nowrap">
-        {r.date}
-      </td>
+    <tr className={`border-b border-[var(--color-border)] hover:bg-[var(--color-bg-elevated)] transition ${busy ? 'opacity-50' : ''}`}>
+      <td className="px-5 py-3.5 tabular text-[var(--color-text-3)] whitespace-nowrap">{r.date}</td>
       <td className="px-5 py-3.5 max-w-md">
         <div className="flex items-center gap-2 min-w-0">
           {r.is_transfer === 1 && <ArrowLeftRight className="w-3 h-3 text-[var(--color-text-4)] shrink-0" />}
@@ -149,17 +216,30 @@ function TxRow({
         </div>
       </td>
       <td className="px-5 py-3.5">
-        <select
-          value={r.category_id ?? ''}
-          onChange={e => onUpdateCategory(r.id, e.target.value ? Number(e.target.value) : null)}
-          className="bg-transparent border border-[var(--color-border)] text-xs rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-[var(--color-border-strong)] focus:outline-none focus:border-[var(--color-mint)] max-w-[160px]"
-          style={{ color: r.category_color ?? 'var(--color-text-3)' }}
-        >
-          <option value="">— none —</option>
-          {categories.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={r.category_id ?? ''}
+            onChange={e => changeCategory(e.target.value ? Number(e.target.value) : null)}
+            className="bg-transparent border border-[var(--color-border)] text-xs rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-[var(--color-border-strong)] focus:outline-none focus:border-[var(--color-mint)] max-w-[160px]"
+            style={{ color: r.category_color ?? 'var(--color-text-3)' }}
+          >
+            <option value="">— none —</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setApplySimilar(!applySimilar)}
+            title="Apply next change to all similar transactions"
+            className={`w-6 h-6 rounded flex items-center justify-center transition ${
+              applySimilar
+                ? 'bg-[var(--color-mint-soft)] text-[var(--color-mint)]'
+                : 'text-[var(--color-text-4)] hover:text-[var(--color-text-3)]'
+            }`}
+          >
+            {applySimilar ? <Wand2 className="w-3.5 h-3.5" /> : <Wand2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </td>
       <td className="px-5 py-3.5 text-[var(--color-text-3)] text-xs">{r.account_name}</td>
       <td className="px-5 py-3.5 text-right">

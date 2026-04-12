@@ -7,6 +7,8 @@ import { Dashboard } from './components/Dashboard';
 import { AccountsView } from './components/AccountsView';
 import { ImportView } from './components/ImportView';
 import { TransactionsView } from './components/TransactionsView';
+import { RulesView } from './components/RulesView';
+import { SettingsView } from './components/SettingsView';
 import { Placeholder } from './components/Placeholder';
 
 export function App() {
@@ -40,12 +42,13 @@ export function App() {
         {view === 'transactions' && <TransactionsView />}
         {view === 'accounts' && <AccountsView user={user} allUsers={allUsers} />}
         {view === 'import' && <ImportView />}
+        {view === 'rules' && <RulesView />}
         {view === 'budgets' && <Placeholder title="Budgets" description="AI-suggested and manual budgets per category" />}
         {view === 'insights' && <Placeholder title="AI Insights" description="Monthly spending analysis and advice" />}
         {view === 'chat' && <Placeholder title="Ask Tally" description="Chat about your finances" />}
         {view === 'subscriptions' && <Placeholder title="Subscriptions" description="Recurring charges we've spotted" />}
         {view === 'receipts' && <Placeholder title="Receipts" description="Upload and match receipts to transactions" />}
-        {view === 'settings' && <Placeholder title="Settings" description="API keys, integrations, preferences" />}
+        {view === 'settings' && <SettingsView />}
       </main>
     </div>
   );

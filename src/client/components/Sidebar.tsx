@@ -1,11 +1,11 @@
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Upload, PieChart,
-  Sparkles, Repeat, Receipt, Settings, LogOut, MessageSquare,
+  Sparkles, Repeat, Receipt, Settings, LogOut, MessageSquare, Zap,
 } from 'lucide-react';
 import type { AuthUser } from '../../shared/types';
 
 export type View =
-  | 'dashboard' | 'transactions' | 'accounts' | 'import' | 'budgets'
+  | 'dashboard' | 'transactions' | 'accounts' | 'import' | 'rules' | 'budgets'
   | 'insights' | 'subscriptions' | 'receipts' | 'chat' | 'settings';
 
 interface Props {
@@ -20,6 +20,7 @@ const NAV: Array<{ id: View; label: string; icon: React.FC<{ className?: string 
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'main' },
   { id: 'accounts', label: 'Accounts', icon: Wallet, group: 'main' },
   { id: 'import', label: 'Import', icon: Upload, group: 'main' },
+  { id: 'rules', label: 'Rules', icon: Zap, group: 'main' },
   { id: 'budgets', label: 'Budgets', icon: PieChart, group: 'analysis' },
   { id: 'insights', label: 'AI Insights', icon: Sparkles, group: 'analysis' },
   { id: 'chat', label: 'Ask Tally', icon: MessageSquare, group: 'analysis' },
