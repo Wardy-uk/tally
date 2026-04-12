@@ -8,8 +8,8 @@
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "tsx watch --no-warnings src/server/index.ts",
     "dev:client": "vite",
-    "build": "vite build && tsc -p tsconfig.server.json",
-    "start": "node dist/server/index.js",
+    "build": "vite build",
+    "start": "tsx --no-warnings src/server/index.ts",
     "db:reset": "tsx src/server/db/reset.ts"
   },
   "dependencies": {
@@ -23,6 +23,7 @@
     "openai": "^4.67.3",
     "papaparse": "^5.4.1",
     "sharp": "^0.33.5",
+    "tsx": "^4.19.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -43,7 +44,6 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.13.0",
     "tailwindcss": "^4.0.0-beta.8",
-    "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "vite": "^6.0.1"
   }

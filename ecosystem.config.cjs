@@ -2,16 +2,16 @@ module.exports = {
   apps: [
     {
       name: 'tally',
-      script: 'dist/server/index.js',
+      script: 'node_modules/tsx/dist/cli.mjs',
+      args: '--no-warnings src/server/index.ts',
       cwd: __dirname,
       instances: 1,
       exec_mode: 'fork',
-      node_args: ['--no-warnings'],
       env: {
         NODE_ENV: 'production',
-        PORT: 3002,
+        PORT: 3003,
       },
-      max_memory_restart: '400M',
+      max_memory_restart: '500M',
       error_file: 'logs/err.log',
       out_file: 'logs/out.log',
       merge_logs: true,
