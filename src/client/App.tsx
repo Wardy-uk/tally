@@ -40,7 +40,7 @@ export function App() {
   return (
     <div className="flex min-h-screen">
       <Sidebar view={view} onNavigate={setView} user={user} onLogout={logout} />
-      <main className="flex-1 p-8 max-w-[1400px]">
+      <main className="flex-1 p-4 md:p-8 min-w-0">
         {view === 'dashboard' && <Dashboard />}
         {view === 'transactions' && <TransactionsView />}
         {view === 'accounts' && <AccountsView user={user} />}

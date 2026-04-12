@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Upload, PieChart,
   Sparkles, Repeat, Receipt, Settings, LogOut, MessageSquare, Zap, RefreshCw,
+  ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
 import type { AuthUser } from '../../shared/types';
 
@@ -29,7 +31,31 @@ const NAV: Array<{ id: View; label: string; icon: React.FC<{ className?: string 
   { id: 'settings', label: 'Settings', icon: Settings, group: 'system' },
 ];
 
+const COLLAPSE_KEY = 'tally_sidebar_collapsed';
+
 export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    // On narrow screens default collapsed. Otherwise respect saved preference.
+    const narrow = window.innerWidth < 900;
+    const saved = localStorage.getItem(COLLAPSE_KEY);
+    if (saved !== null) return saved === '1';
+    return narrow;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+  }, [collapsed]);
+
+  // Auto-collapse when window resized to narrow
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth < 900 && !collapsed) setCollapsed(true);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [collapsed]);
+
   const groups = {
     main: NAV.filter(n => n.group === 'main'),
     analysis: NAV.filter(n => n.group === 'analysis'),
@@ -37,41 +63,56 @@ export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
   };
 
   return (
-    <aside className="w-[240px] shrink-0 bg-[var(--color-surface)] border-r border-[var(--color-border)] flex flex-col h-screen sticky top-0">
-      <div className="p-5 flex items-center gap-3 border-b border-[var(--color-border)]">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-mint)] to-[var(--color-violet)] flex items-center justify-center shadow-[0_0_24px_rgba(74,222,128,0.3)]">
+    <aside
+      className={`shrink-0 bg-[var(--color-surface)] border-r border-[var(--color-border)] flex flex-col h-screen sticky top-0 transition-all duration-200 ${
+        collapsed ? 'w-[72px]' : 'w-[240px]'
+      }`}
+    >
+      <div className={`p-5 flex items-center gap-3 border-b border-[var(--color-border)] ${collapsed ? 'justify-center px-0' : ''}`}>
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-mint)] to-[var(--color-violet)] flex items-center justify-center shadow-[0_0_24px_rgba(74,222,128,0.3)] shrink-0">
           <Wallet className="w-5 h-5 text-[#04140a]" strokeWidth={2.5} />
         </div>
-        <div>
-          <div className="text-base font-extrabold tracking-tight">Tally</div>
-          <div className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wider">v{__APP_VERSION__}</div>
-        </div>
+        {!collapsed && (
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-extrabold tracking-tight">Tally</div>
+            <div className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wider">v{__APP_VERSION__}</div>
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 flex flex-col gap-5">
-        <NavGroup title="Main" items={groups.main} view={view} onNavigate={onNavigate} />
-        <NavGroup title="Analysis" items={groups.analysis} view={view} onNavigate={onNavigate} />
-        <NavGroup title="System" items={groups.system} view={view} onNavigate={onNavigate} />
+        <NavGroup title="Main" items={groups.main} view={view} onNavigate={onNavigate} collapsed={collapsed} />
+        <NavGroup title="Analysis" items={groups.analysis} view={view} onNavigate={onNavigate} collapsed={collapsed} />
+        <NavGroup title="System" items={groups.system} view={view} onNavigate={onNavigate} collapsed={collapsed} />
       </nav>
 
-      <div className="p-3 border-t border-[var(--color-border)] flex flex-col gap-2">
+      <div className={`p-3 border-t border-[var(--color-border)] flex flex-col gap-2`}>
         <button
-          onClick={() => window.location.reload()}
-          className="flex items-center justify-center gap-2 h-9 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-mint)] hover:border-[rgba(74,222,128,0.3)] transition"
-          title="Refresh data (reload app)"
+          onClick={() => setCollapsed(c => !c)}
+          className={`flex items-center ${collapsed ? 'justify-center' : 'justify-center gap-2'} h-9 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition`}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
+          {collapsed ? <ChevronsRight className="w-3.5 h-3.5" /> : <><ChevronsLeft className="w-3.5 h-3.5" /> Collapse</>}
         </button>
 
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[var(--color-bg-elevated)]">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-violet)] to-[var(--color-sky)] flex items-center justify-center text-xs font-bold text-white">
+        <button
+          onClick={() => window.location.reload()}
+          className={`flex items-center ${collapsed ? 'justify-center' : 'justify-center gap-2'} h-9 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-mint)] hover:border-[rgba(74,222,128,0.3)] transition`}
+          title="Refresh"
+        >
+          {collapsed ? <RefreshCw className="w-3.5 h-3.5" /> : <><RefreshCw className="w-3.5 h-3.5" /> Refresh</>}
+        </button>
+
+        <div className={`flex items-center gap-3 ${collapsed ? 'flex-col px-0 py-2' : 'px-3 py-2'} rounded-xl bg-[var(--color-bg-elevated)]`}>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-violet)] to-[var(--color-sky)] flex items-center justify-center text-xs font-bold text-white shrink-0">
             {user.displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate">{user.displayName}</div>
-            <div className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wider">{user.role}</div>
-          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{user.displayName}</div>
+              <div className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wider">{user.role}</div>
+            </div>
+          )}
           <button
             onClick={onLogout}
             className="w-8 h-8 rounded-lg text-[var(--color-text-3)] hover:text-[var(--color-coral)] hover:bg-[var(--color-coral-soft)] transition flex items-center justify-center"
@@ -86,18 +127,21 @@ export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
 }
 
 function NavGroup({
-  title, items, view, onNavigate,
+  title, items, view, onNavigate, collapsed,
 }: {
   title: string;
   items: typeof NAV;
   view: View;
   onNavigate: (v: View) => void;
+  collapsed: boolean;
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[var(--color-text-4)] uppercase tracking-wider px-3 mb-1.5">
-        {title}
-      </div>
+      {!collapsed && (
+        <div className="text-[10px] font-semibold text-[var(--color-text-4)] uppercase tracking-wider px-3 mb-1.5">
+          {title}
+        </div>
+      )}
       <div className="flex flex-col gap-0.5">
         {items.map(item => {
           const Icon = item.icon;
@@ -106,14 +150,15 @@ function NavGroup({
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              className={`flex items-center gap-3 px-3 py-2 rounded-[10px] text-sm font-medium transition-all ${
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-[10px] text-sm font-medium transition-all ${
                 active
                   ? 'bg-[var(--color-mint-soft)] text-[var(--color-mint)] shadow-[inset_0_0_0_1px_rgba(74,222,128,0.2)]'
                   : 'text-[var(--color-text-2)] hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text)]'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{item.label}</span>
+              <Icon className="w-4 h-4 shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
             </button>
           );
         })}
