@@ -64,15 +64,25 @@ async function syncOneTlAccount(
 
   // Fetch live balance from TrueLayer and back-calculate opening balance so
   // Tally's current_balance matches reality. opening = live - sum(all tx).
+  //
+  // For current accounts we compute `available - overdraft` rather than using
+  // TrueLayer's `current` field. Why: `current` is the cleared balance
+  // (excluding pending transactions) whereas `available` is what you can
+  // actually spend right now. Subtracting the overdraft limit gives the
+  // "true" balance including pending transactions and any overdraft usage.
+  //   no overdraft:  available - 0        = available (same as current)
+  //   in credit:     available - overdraft = money you actually have
+  //   overdrawn:     available - overdraft = negative (amount you really owe)
+  //
+  // For credit cards TrueLayer reports debt as positive in `current`; we
+  // invert to show as a negative Tally balance.
   try {
     const balance = await fetchBalance(accessToken, tlAccountId);
     if (balance) {
-      // For credit cards TrueLayer reports debt as a positive number in `current`
-      // (what you owe). Express that as a negative Tally balance.
       const account = db.prepare(`SELECT type FROM accounts WHERE id = ?`).get(tallyAccountId) as { type: string } | undefined;
       const signedCurrent = account?.type === 'credit'
         ? -Math.round(Math.abs(balance.current) * 100)
-        : Math.round(balance.current * 100);
+        : Math.round((balance.available - (balance.overdraft ?? 0)) * 100);
 
       const txSum = (db.prepare(
         `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ?`,
