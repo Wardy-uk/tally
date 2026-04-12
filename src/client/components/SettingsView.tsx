@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Key, Sparkles, CheckCircle2, XCircle, Save, Briefcase, Building2,
   Link2, Unlink, RefreshCw, Database, Download, Users, UserPlus, Trash2, Shield, Lock,
+  Tag, Plus, Edit3,
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { Card, CardHeader, CardTitle } from './ui/Card';
@@ -134,6 +135,7 @@ export function SettingsView() {
 
       <ChangePasswordSection />
       <UsersSection />
+      <CategoriesSection />
       <SalarySection />
       <TrueLayerSection />
       <BackupSection />
@@ -737,6 +739,256 @@ function SalaryProfileForm({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ===== Categories Section =====
+
+interface CategoryRow {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  icon: string | null;
+  color: string | null;
+  kind: 'expense' | 'income' | 'transfer';
+  system_locked: number;
+}
+
+const PRESET_COLORS = [
+  '#4ade80', '#fb7185', '#fbbf24', '#a78bfa', '#38bdf8',
+  '#f472b6', '#fb923c', '#34d399', '#818cf8', '#e879f9',
+  '#94a3b8',
+];
+
+function CategoriesSection() {
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<CategoryRow | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setCategories(await api<CategoryRow[]>('/categories'));
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function del(c: CategoryRow) {
+    if (!confirm(`Delete "${c.name}"? Any transactions using it will become uncategorised.`)) return;
+    try {
+      await api(`/categories/${c.id}`, { method: 'DELETE' });
+      await load();
+    } catch (e: any) {
+      alert(e.error ?? 'Delete failed');
+    }
+  }
+
+  const groups = {
+    expense: categories.filter(c => c.kind === 'expense'),
+    income: categories.filter(c => c.kind === 'income'),
+    transfer: categories.filter(c => c.kind === 'transfer'),
+  };
+
+  return (
+    <Card padding="lg">
+      <CardHeader>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-violet-soft)] text-[var(--color-violet)] flex items-center justify-center">
+              <Tag className="w-5 h-5" />
+            </div>
+            <CardTitle subtitle="Create and manage the categories your transactions can be tagged with">
+              Categories
+            </CardTitle>
+          </div>
+          <Button variant="primary" size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => setCreating(true)}>
+            New category
+          </Button>
+        </div>
+      </CardHeader>
+
+      {loading ? (
+        <div className="text-sm text-[var(--color-text-3)]">Loading…</div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <CategoryGroup title="Expense" items={groups.expense} onEdit={setEditing} onDelete={del} />
+          <CategoryGroup title="Income" items={groups.income} onEdit={setEditing} onDelete={del} />
+          <CategoryGroup title="Transfer" items={groups.transfer} onEdit={setEditing} onDelete={del} />
+        </div>
+      )}
+
+      <CategoryModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        onSaved={() => { setCreating(false); load(); }}
+      />
+      <CategoryModal
+        open={editing !== null}
+        category={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => { setEditing(null); load(); }}
+      />
+    </Card>
+  );
+}
+
+function CategoryGroup({
+  title, items, onEdit, onDelete,
+}: {
+  title: string;
+  items: CategoryRow[];
+  onEdit: (c: CategoryRow) => void;
+  onDelete: (c: CategoryRow) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <div className="text-[10px] font-bold text-[var(--color-text-4)] uppercase tracking-wider mb-2">{title}</div>
+      <div className="flex flex-wrap gap-2">
+        {items.map(c => (
+          <div
+            key={c.id}
+            className="group flex items-center gap-2 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[12px] pl-3 pr-1 h-9"
+            style={{ boxShadow: c.color ? `inset 3px 0 0 ${c.color}` : undefined }}
+          >
+            <span className="text-sm font-medium" style={{ color: c.color ?? 'var(--color-text)' }}>
+              {c.name}
+            </span>
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+              {!c.system_locked && (
+                <button
+                  onClick={() => onEdit(c)}
+                  className="w-7 h-7 rounded-lg hover:bg-[var(--color-surface)] text-[var(--color-text-3)] hover:text-[var(--color-text)] flex items-center justify-center"
+                  title="Edit"
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+              )}
+              {!c.system_locked && (
+                <button
+                  onClick={() => onDelete(c)}
+                  className="w-7 h-7 rounded-lg hover:bg-[var(--color-coral-soft)] text-[var(--color-text-3)] hover:text-[var(--color-coral)] flex items-center justify-center"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+              {c.system_locked ? (
+                <div className="w-7 h-7 flex items-center justify-center text-[var(--color-text-4)]" title="System category">
+                  <Lock className="w-3 h-3" />
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryModal({
+  open, onClose, onSaved, category,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  category?: CategoryRow | null;
+}) {
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<'expense' | 'income' | 'transfer'>('expense');
+  const [color, setColor] = useState(PRESET_COLORS[0]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(category?.name ?? '');
+      setKind(category?.kind ?? 'expense');
+      setColor(category?.color ?? PRESET_COLORS[0]);
+      setError(null);
+    }
+  }, [open, category]);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      const body = JSON.stringify({ name, kind, color, icon: null });
+      if (category) {
+        await api(`/categories/${category.id}`, { method: 'PUT', body });
+      } else {
+        await api('/categories', { method: 'POST', body });
+      }
+      onSaved();
+    } catch (e: any) {
+      setError(e.error ?? 'Failed to save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={category ? 'Edit category' : 'New category'}
+      subtitle={category ? 'Rename or recolour this category' : 'Add a new tag for your transactions'}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={submit} disabled={!name || busy}>
+            {busy ? 'Saving…' : category ? 'Update' : 'Create'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. Car maintenance"
+          autoFocus
+        />
+        <Select
+          label="Kind"
+          value={kind}
+          onChange={e => setKind(e.target.value as any)}
+          options={[
+            { value: 'expense', label: 'Expense — money going out' },
+            { value: 'income', label: 'Income — money coming in' },
+            { value: 'transfer', label: 'Transfer — between accounts' },
+          ]}
+        />
+        <div>
+          <label className="text-xs font-medium text-[var(--color-text-3)] uppercase tracking-wider mb-2 block">
+            Colour
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {PRESET_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={`w-9 h-9 rounded-lg transition ${color === c ? 'ring-2 ring-offset-2 ring-offset-[var(--color-surface)]' : ''}`}
+                style={{
+                  background: c,
+                  boxShadow: color === c ? `0 0 0 2px ${c}` : undefined,
+                }}
+                aria-label={`Colour ${c}`}
+              />
+            ))}
+          </div>
+        </div>
+        {error && (
+          <div className="text-sm text-[var(--color-coral)] bg-[var(--color-coral-soft)] border border-[rgba(251,113,133,0.2)] rounded-[12px] px-3 py-2">
+            {error}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
