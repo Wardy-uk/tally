@@ -107,23 +107,27 @@ export async function syncAllConnections(): Promise<{
 
   for (const c of connections) {
     const linked = db.prepare(`
-      SELECT external_id, linked_account_id FROM truelayer_accounts
+      SELECT id, external_id, linked_account_id, last_sync_at FROM truelayer_accounts
       WHERE connection_id = ? AND linked_account_id IS NOT NULL
-    `).all(c.id) as Array<{ external_id: string; linked_account_id: number }>;
+    `).all(c.id) as Array<{ id: number; external_id: string; linked_account_id: number; last_sync_at: string | null }>;
 
-    // Default: pull last 90 days, or incremental from last sync
+    // Per-account incremental: use each account's own last_sync_at (not the connection's),
+    // so a failed account sync doesn't make the next run skip 88 days of data.
     const defaultFrom = new Date();
     defaultFrom.setDate(defaultFrom.getDate() - 90);
-    const fromDate = c.last_sync_at
-      ? new Date(new Date(c.last_sync_at).getTime() - 2 * 86400_000).toISOString().slice(0, 10)
-      : defaultFrom.toISOString().slice(0, 10);
+    const defaultFromStr = defaultFrom.toISOString().slice(0, 10);
 
+    let anyAccountSucceeded = false;
     for (const row of linked) {
+      const fromDate = row.last_sync_at
+        ? new Date(new Date(row.last_sync_at).getTime() - 2 * 86400_000).toISOString().slice(0, 10)
+        : defaultFromStr;
       try {
         const { imported, skipped } = await syncOneTlAccount(c.id, row.external_id, row.linked_account_id, fromDate);
         totalImported += imported;
         totalSkipped += skipped;
         accountsSynced++;
+        anyAccountSucceeded = true;
       } catch (e: any) {
         const msg = `[truelayer-sync] connection ${c.id} / account ${row.external_id} failed: ${e.message}`;
         console.error(msg);
@@ -132,8 +136,11 @@ export async function syncAllConnections(): Promise<{
       }
     }
 
-    db.prepare(`UPDATE truelayer_connections SET last_sync_at = ? WHERE id = ?`)
-      .run(new Date().toISOString(), c.id);
+    // Only stamp the connection as synced if at least one account succeeded
+    if (anyAccountSucceeded) {
+      db.prepare(`UPDATE truelayer_connections SET last_sync_at = ? WHERE id = ?`)
+        .run(new Date().toISOString(), c.id);
+    }
   }
 
   if (totalImported > 0) {
