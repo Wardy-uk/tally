@@ -3,6 +3,7 @@ dist
 *.log
 .env
 .env.local
+.netlify/
 
 # Data — never commit
 tally.db
