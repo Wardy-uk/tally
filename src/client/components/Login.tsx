@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { PasswordInput } from './ui/PasswordInput';
 import { Wallet, Lock, User, UserPlus } from 'lucide-react';
 
 interface Props {
@@ -79,9 +80,8 @@ export function Login({ hasUsers, onLogin, onRegister }: Props) {
                 icon={<UserPlus className="w-4 h-4" />}
               />
             )}
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               icon={<Lock className="w-4 h-4" />}

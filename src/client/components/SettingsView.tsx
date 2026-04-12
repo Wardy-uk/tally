@@ -10,6 +10,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { api, getToken } from '../lib/api';
 import { useAccounts } from '../hooks/useAccounts';
+import { PasswordInput } from './ui/PasswordInput';
 
 type PayDayType = 'day' | 'last-working' | 'working-before';
 
@@ -131,11 +132,104 @@ export function SettingsView() {
         </div>
       </Card>
 
+      <ChangePasswordSection />
       <UsersSection />
       <SalarySection />
       <TrueLayerSection />
       <BackupSection />
     </div>
+  );
+}
+
+// ===== Change Password Section =====
+
+function ChangePasswordSection() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  async function submit() {
+    setError(null);
+    if (next !== confirm) {
+      setError('New passwords do not match');
+      return;
+    }
+    if (next.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      setDone(true);
+      setCurrent(''); setNext(''); setConfirm('');
+      setTimeout(() => setDone(false), 4000);
+    } catch (e: any) {
+      setError(e.error ?? 'Failed to change password');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card padding="lg">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--color-mint-soft)] text-[var(--color-mint)] flex items-center justify-center">
+            <Lock className="w-5 h-5" />
+          </div>
+          <CardTitle subtitle="Update your own sign-in password">My password</CardTitle>
+        </div>
+      </CardHeader>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl">
+        <PasswordInput
+          label="Current password"
+          value={current}
+          onChange={e => setCurrent(e.target.value)}
+        />
+        <PasswordInput
+          label="New password"
+          value={next}
+          onChange={e => setNext(e.target.value)}
+          placeholder="≥ 6 characters"
+        />
+        <PasswordInput
+          label="Confirm new password"
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+        />
+      </div>
+
+      {error && (
+        <div className="mt-3 text-sm text-[var(--color-coral)] bg-[var(--color-coral-soft)] border border-[rgba(251,113,133,0.2)] rounded-[12px] px-3 py-2 max-w-md">
+          {error}
+        </div>
+      )}
+      {done && (
+        <div className="mt-3 text-sm text-[var(--color-mint)] flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" /> Password changed
+        </div>
+      )}
+
+      <div className="mt-4">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={submit}
+          disabled={!current || !next || !confirm || busy}
+          icon={<Save className="w-4 h-4" />}
+        >
+          {busy ? 'Saving…' : 'Change password'}
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -333,9 +427,8 @@ function AddUserModal({
           placeholder="sarah"
           hint="Lowercase, no spaces — used to sign in"
         />
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="At least 6 characters"
@@ -402,14 +495,18 @@ function ResetPasswordModal({
         </>
       }
     >
-      <Input
+      <PasswordInput
         label="New password"
-        type="password"
         value={password}
         onChange={e => setPassword(e.target.value)}
         placeholder="At least 6 characters"
         autoFocus
       />
+      {done && (
+        <div className="mt-3 text-sm text-[var(--color-mint)] flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" /> Password updated
+        </div>
+      )}
     </Modal>
   );
 }
