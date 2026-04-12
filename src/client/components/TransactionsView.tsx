@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, X, Sparkles, CheckSquare, Square, Wand2 } from 'lucide-react';
+import { Search, Filter, X, Sparkles } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -24,6 +24,11 @@ export function TransactionsView() {
   const [type, setType] = useState<string>('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+
+  function showFeedback(msg: string) {
+    setAiFeedback(msg);
+    setTimeout(() => setAiFeedback(null), 5000);
+  }
 
   const filter = useMemo(() => ({
     search: search || undefined,
@@ -194,7 +199,7 @@ export function TransactionsView() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <TxRow key={r.id} r={r} categories={categories} onRefresh={refresh} />
+                <TxRow key={r.id} r={r} categories={categories} onRefresh={refresh} onFeedback={showFeedback} />
               ))}
             </tbody>
           </table>
@@ -205,24 +210,35 @@ export function TransactionsView() {
 }
 
 function TxRow({
-  r, categories, onRefresh,
+  r, categories, onRefresh, onFeedback,
 }: {
   r: TransactionRow;
   categories: Array<{ id: number; name: string; color: string | null }>;
   onRefresh: () => void;
+  onFeedback: (msg: string) => void;
 }) {
-  const [applySimilar, setApplySimilar] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function changeCategory(newCategoryId: number | null) {
     setBusy(true);
     try {
-      await api(`/transactions/${r.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ categoryId: newCategoryId, applyToSimilar: applySimilar }),
-      });
+      const result = await api<{ appliedToSimilar: number; ruleCreated: boolean; ruleUpdated: boolean }>(
+        `/transactions/${r.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ categoryId: newCategoryId }),
+        },
+      );
+      if (result.ruleCreated && result.appliedToSimilar > 0) {
+        onFeedback(`Rule saved — also categorised ${result.appliedToSimilar} similar transaction${result.appliedToSimilar > 1 ? 's' : ''}`);
+      } else if (result.ruleCreated) {
+        onFeedback(`Rule saved — future matches will auto-categorise`);
+      } else if (result.ruleUpdated && result.appliedToSimilar > 0) {
+        onFeedback(`Rule updated — re-categorised ${result.appliedToSimilar} similar transaction${result.appliedToSimilar > 1 ? 's' : ''}`);
+      } else if (result.ruleUpdated) {
+        onFeedback(`Existing rule updated for this merchant`);
+      }
       await onRefresh();
-      setApplySimilar(false);
     } finally {
       setBusy(false);
     }
@@ -238,30 +254,17 @@ function TxRow({
         </div>
       </td>
       <td className="px-5 py-3.5">
-        <div className="flex items-center gap-2">
-          <select
-            value={r.category_id ?? ''}
-            onChange={e => changeCategory(e.target.value ? Number(e.target.value) : null)}
-            className="bg-transparent border border-[var(--color-border)] text-xs rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-[var(--color-border-strong)] focus:outline-none focus:border-[var(--color-mint)] max-w-[160px]"
-            style={{ color: r.category_color ?? 'var(--color-text-3)' }}
-          >
-            <option value="">— none —</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => setApplySimilar(!applySimilar)}
-            title="Apply next change to all similar transactions"
-            className={`w-6 h-6 rounded flex items-center justify-center transition ${
-              applySimilar
-                ? 'bg-[var(--color-mint-soft)] text-[var(--color-mint)]'
-                : 'text-[var(--color-text-4)] hover:text-[var(--color-text-3)]'
-            }`}
-          >
-            {applySimilar ? <Wand2 className="w-3.5 h-3.5" /> : <Wand2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
+        <select
+          value={r.category_id ?? ''}
+          onChange={e => changeCategory(e.target.value ? Number(e.target.value) : null)}
+          className="bg-transparent border border-[var(--color-border)] text-xs rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-[var(--color-border-strong)] focus:outline-none focus:border-[var(--color-mint)] max-w-[160px]"
+          style={{ color: r.category_color ?? 'var(--color-text-3)' }}
+        >
+          <option value="">— none —</option>
+          {categories.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </td>
       <td className="px-5 py-3.5 text-[var(--color-text-3)] text-xs">{r.account_name}</td>
       <td className="px-5 py-3.5 text-right">

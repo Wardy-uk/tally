@@ -95,7 +95,9 @@ export function createTransactionsRoutes() {
     const schema = z.object({
       categoryId: z.number().int().nullable().optional(),
       notes: z.string().nullable().optional(),
-      /** If true and categoryId is provided, also create a rule + apply to all similar. */
+      /** Opt out of auto-rule creation. Defaults to true. */
+      createRule: z.boolean().optional(),
+      /** Also apply to existing similar uncategorised transactions. Defaults to true. */
       applyToSimilar: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
@@ -108,39 +110,74 @@ export function createTransactionsRoutes() {
       TransactionQueries.updateNotes.run(parsed.data.notes, id);
     }
 
+    const createRule = parsed.data.createRule !== false;
+    const applyToSimilar = parsed.data.applyToSimilar !== false;
+
     let appliedToSimilar = 0;
-    if (parsed.data.applyToSimilar && parsed.data.categoryId !== null && parsed.data.categoryId !== undefined) {
+    let ruleCreated = false;
+    let ruleUpdated = false;
+
+    // Auto-create / upsert a rule so future imports of the same merchant get categorised.
+    // Skip if clearing the category (user explicitly uncategorising) or not creating rule.
+    if (createRule && parsed.data.categoryId !== null && parsed.data.categoryId !== undefined) {
       const tx = TransactionQueries.findById.get(id) as any;
       if (tx) {
-        // Extract a sensible rule phrase from the description
         const phrase = extractMerchantPhrase(tx.description);
-        // Create the rule
-        RuleQueries.create.run(
-          `Auto: ${phrase}`,
-          'description',
-          'contains',
-          phrase,
-          parsed.data.categoryId,
-          100,
-          req.user!.id,
-        );
-        invalidateRuleCache();
+        if (phrase && phrase.length >= 2) {
+          // Upsert: if a rule already matches the same phrase, update its category
+          // rather than creating a duplicate. This lets the user "correct" their
+          // past decision by just re-categorising another transaction.
+          const existing = db.prepare(`
+            SELECT id, category_id FROM rules
+            WHERE match_field = 'description'
+              AND match_type = 'contains'
+              AND LOWER(match_value) = LOWER(?)
+            LIMIT 1
+          `).get(phrase) as { id: number; category_id: number } | undefined;
 
-        // Apply to all matching uncategorised transactions immediately
-        const result = db.prepare(`
-          UPDATE transactions
-          SET category_id = ?
-          WHERE category_id IS NULL
-            AND is_transfer = 0
-            AND LOWER(description) LIKE ?
-        `).run(parsed.data.categoryId, `%${phrase.toLowerCase()}%`);
-        appliedToSimilar = Number(result.changes);
+          if (existing) {
+            if (existing.category_id !== parsed.data.categoryId) {
+              db.prepare(`UPDATE rules SET category_id = ? WHERE id = ?`)
+                .run(parsed.data.categoryId, existing.id);
+              ruleUpdated = true;
+            }
+          } else {
+            RuleQueries.create.run(
+              `Auto: ${phrase}`,
+              'description',
+              'contains',
+              phrase,
+              parsed.data.categoryId,
+              100,
+              req.user!.id,
+            );
+            ruleCreated = true;
+          }
+          invalidateRuleCache();
+
+          // Apply to all matching uncategorised transactions immediately
+          if (applyToSimilar) {
+            const result = db.prepare(`
+              UPDATE transactions
+              SET category_id = ?
+              WHERE category_id IS NULL
+                AND is_transfer = 0
+                AND LOWER(description) LIKE ?
+            `).run(parsed.data.categoryId, `%${phrase.toLowerCase()}%`);
+            appliedToSimilar = Number(result.changes);
+          }
+        }
       }
     }
 
     res.json({
       ok: true,
-      data: { ...(TransactionQueries.findById.get(id) as any), appliedToSimilar },
+      data: {
+        ...(TransactionQueries.findById.get(id) as any),
+        appliedToSimilar,
+        ruleCreated,
+        ruleUpdated,
+      },
     });
   });
 
