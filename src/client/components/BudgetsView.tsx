@@ -55,6 +55,10 @@ export function BudgetsView() {
     setError(null);
     try {
       const data = await api<Suggestion[]>('/budgets/suggest', { method: 'POST', body: JSON.stringify({ months: 3 }) });
+      if (data.length === 0) {
+        setError('No spending history to analyse yet. Go to Transactions → "AI categorise" first, then come back.');
+        return;
+      }
       setSuggestions(data);
     } catch (e: any) {
       setError(e.error ?? 'AI suggestion failed');
