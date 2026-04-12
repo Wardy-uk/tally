@@ -844,13 +844,17 @@ function TrueLayerSection() {
       const res = await api<{ imported: number; skipped: number; errors: string[] }>(
         '/truelayer/sync', { method: 'POST' },
       );
-      setFeedback(`Synced: ${res.imported} new, ${res.skipped} dupes${res.errors.length ? `, ${res.errors.length} errors` : ''}`);
+      if (res.errors.length > 0) {
+        setFeedback(`Sync errors: ${res.errors[0]}`);
+      } else {
+        setFeedback(`Synced: ${res.imported} new, ${res.skipped} dupes`);
+      }
       await loadStatus();
     } catch (e: any) {
       setFeedback(`Sync failed: ${e.error}`);
     } finally {
       setSyncing(false);
-      setTimeout(() => setFeedback(null), 5000);
+      setTimeout(() => setFeedback(null), 10000);
     }
   }
 

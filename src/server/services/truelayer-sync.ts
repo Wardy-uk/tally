@@ -102,7 +102,10 @@ export async function syncAllConnections(): Promise<{
         totalSkipped += skipped;
         accountsSynced++;
       } catch (e: any) {
-        errors.push(`connection ${c.id} / ${row.external_id}: ${e.message}`);
+        const msg = `[truelayer-sync] connection ${c.id} / account ${row.external_id} failed: ${e.message}`;
+        console.error(msg);
+        if (e.stack) console.error(e.stack);
+        errors.push(msg);
       }
     }
 

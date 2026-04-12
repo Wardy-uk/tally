@@ -155,10 +155,17 @@ export async function ensureFreshToken(connectionId: number): Promise<string> {
 
   const fresh = await refreshTokens(row.refresh_token);
   const newExpiresAt = new Date(now + fresh.expires_in * 1000).toISOString();
+  // TrueLayer's refresh response doesn't always include scope/refresh_token — keep existing values as fallback.
   db.prepare(`
     UPDATE truelayer_connections
     SET access_token = ?, refresh_token = ?, expires_at = ?, scope = ?
     WHERE id = ?
-  `).run(fresh.access_token, fresh.refresh_token, newExpiresAt, fresh.scope, connectionId);
+  `).run(
+    fresh.access_token,
+    fresh.refresh_token ?? row.refresh_token,
+    newExpiresAt,
+    fresh.scope ?? row.scope ?? null,
+    connectionId,
+  );
   return fresh.access_token;
 }
