@@ -1,5 +1,7 @@
 node_modules
 dist
+mcp/dist
+mcp/node_modules
 *.log
 .env
 .env.local
