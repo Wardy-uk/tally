@@ -1,7 +1,7 @@
 # Netlify config for tally.nickward.co.uk
 #
 # The Vite build outputs a static SPA to dist/client. The API lives on the Pi,
-# exposed via Tailscale Funnel at https://pi5.tailecb90f.ts.net/tally/api/*.
+# exposed via Tailscale Funnel at https://pi-dev.tailecb90f.ts.net/tally/api/*.
 # Netlify proxies `/api/*` requests through to the Pi — same-origin from the
 # browser's perspective so no CORS headers needed.
 
@@ -15,14 +15,14 @@
 # Proxy /api/* calls to the Pi backend (path prefix stripped by Pi's API_PREFIX)
 [[redirects]]
   from = "/api/*"
-  to = "https://pi5.tailecb90f.ts.net/tally/api/:splat"
+  to = "https://pi-dev.tailecb90f.ts.net/tally/api/:splat"
   status = 200
   force = true
 
 # Proxy receipt file requests (image serving endpoint)
 [[redirects]]
   from = "/receipts/*"
-  to = "https://pi5.tailecb90f.ts.net/tally/receipts/:splat"
+  to = "https://pi-dev.tailecb90f.ts.net/tally/receipts/:splat"
   status = 200
   force = true
 
