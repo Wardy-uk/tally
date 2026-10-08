@@ -10,7 +10,8 @@
     "dev:client": "vite",
     "build": "vite build",
     "start": "tsx --no-warnings src/server/index.ts",
-    "db:reset": "tsx src/server/db/reset.ts"
+    "db:reset": "tsx src/server/db/reset.ts",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.2",

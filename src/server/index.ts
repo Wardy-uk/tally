@@ -22,8 +22,22 @@ import { createReceiptsRoutes } from './routes/receipts.js';
 import { createBackupRoutes } from './routes/backup.js';
 import { syncAllConnections } from './services/truelayer-sync.js';
 import { createBackup, pruneBackups } from './services/backup-service.js';
+import { loadJwtSecret, JwtSecretError } from './security/jwt-secret.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Refuse to start without a real signing secret — BEFORE the schema runs or the
+// port opens. Never logs the secret, only where it came from.
+try {
+  const { source } = loadJwtSecret();
+  console.log(`[tally] jwt secret: ${source}`);
+} catch (err) {
+  if (err instanceof JwtSecretError) {
+    console.error(`[tally] FATAL: ${err.message}`);
+    process.exit(1);
+  }
+  throw err;
+}
 
 initSchema();
 

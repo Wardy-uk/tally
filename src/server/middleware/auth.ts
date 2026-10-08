@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { Settings } from '../db/settings-store.js';
 import { UserQueries } from '../db/queries.js';
 import type { AuthUser } from '../../shared/types.js';
+import { loadJwtSecret } from '../security/jwt-secret.js';
+import { signTokenWith, verifyTokenWith } from '../security/token.js';
 
 declare global {
   namespace Express {
@@ -12,26 +12,17 @@ declare global {
   }
 }
 
+// The secret is resolved (and refused) by security/jwt-secret.ts — never a literal here.
 function getSecret(): string {
-  return (Settings.get<string>('jwt_secret') ?? process.env.JWT_SECRET ?? 'dev-insecure-secret');
+  return loadJwtSecret().secret;
 }
 
 export function signToken(user: AuthUser): string {
-  return jwt.sign(user, getSecret(), { expiresIn: '30d' });
+  return signTokenWith(user, getSecret());
 }
 
 export function verifyToken(token: string): AuthUser | null {
-  try {
-    const decoded = jwt.verify(token, getSecret()) as any;
-    return {
-      id: decoded.id,
-      username: decoded.username,
-      displayName: decoded.displayName,
-      role: decoded.role,
-    };
-  } catch {
-    return null;
-  }
+  return verifyTokenWith(token, getSecret());
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

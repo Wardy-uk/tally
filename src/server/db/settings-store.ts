@@ -3,7 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SETTINGS_PATH = path.resolve(__dirname, '../../../settings.json');
+// TALLY_SETTINGS_PATH exists for tests; production uses the repo-root settings.json.
+const SETTINGS_PATH = process.env.TALLY_SETTINGS_PATH
+  ? path.resolve(process.env.TALLY_SETTINGS_PATH)
+  : path.resolve(__dirname, '../../../settings.json');
 
 type SettingsMap = Record<string, string | number | boolean | null>;
 
