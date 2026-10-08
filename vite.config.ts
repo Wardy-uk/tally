@@ -5,10 +5,15 @@ import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
-let gitHash = 'dev';
-try {
-  gitHash = execSync('git rev-parse --short HEAD').toString().trim();
-} catch {}
+// Build label: git hash when available, else the build time (e.g. Netlify source uploads have no .git).
+let gitHash = process.env.COMMIT_REF?.slice(0, 7) ?? '';
+if (!gitHash) {
+  try {
+    gitHash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    gitHash = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  }
+}
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
