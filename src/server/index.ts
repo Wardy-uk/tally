@@ -94,7 +94,9 @@ setInterval(async () => {
   try {
     const result = await syncAllConnections();
     if (result.connections > 0) {
-      console.log(`[tally] truelayer sync: ${result.imported} new, ${result.skipped} dupes across ${result.accounts} accounts`);
+      // Say when accounts FAILED: '0 accounts' alone read as a quiet success for 3 months.
+      const failed = result.errors.length ? ` — ${result.errors.length} account sync(s) FAILED (see err.log)` : '';
+      console.log(`[tally] truelayer sync: ${result.imported} new, ${result.skipped} dupes across ${result.accounts} accounts${failed}`);
     }
   } catch (e: any) {
     console.warn('[tally] truelayer sync failed', e.message);

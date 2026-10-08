@@ -5,6 +5,7 @@ import { TransactionQueries } from '../db/queries.js';
 import { applyRulesToTxIds } from './rules-engine.js';
 import { detectTransfers } from './transfer-detector.js';
 import { refreshRecurringTable } from './recurring-detector.js';
+import { fetchFromDate } from './truelayer-relink.js';
 
 interface Connection {
   id: number;
@@ -122,16 +123,18 @@ export async function syncAllConnections(): Promise<{
     `).all(c.id) as Array<{ id: number; external_id: string; linked_account_id: number; last_sync_at: string | null }>;
 
     // Per-account incremental: use each account's own last_sync_at (not the connection's),
-    // so a failed account sync doesn't make the next run skip 88 days of data.
-    const defaultFrom = new Date();
-    defaultFrom.setDate(defaultFrom.getDate() - 90);
-    const defaultFromStr = defaultFrom.toISOString().slice(0, 10);
+    // so a failed account sync doesn't make the next run skip 88 days of data. A never-synced
+    // account on an account that already holds transactions (a reconnect) starts from its
+    // newest stored transaction rather than a fixed 90 days — see truelayer-relink.ts.
+    const latestTx = db.prepare(`SELECT MAX(date) AS d FROM transactions WHERE account_id = ?`);
 
     let anyAccountSucceeded = false;
     for (const row of linked) {
-      const fromDate = row.last_sync_at
-        ? new Date(new Date(row.last_sync_at).getTime() - 2 * 86400_000).toISOString().slice(0, 10)
-        : defaultFromStr;
+      const fromDate = fetchFromDate({
+        lastSyncAt: row.last_sync_at,
+        latestTxDate: (latestTx.get(row.linked_account_id) as { d: string | null } | undefined)?.d ?? null,
+        now: new Date(),
+      });
       try {
         const { imported, skipped } = await syncOneTlAccount(c.id, row.external_id, row.linked_account_id, fromDate);
         totalImported += imported;

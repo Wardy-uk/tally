@@ -6,6 +6,7 @@ import {
   buildAuthUrl, exchangeCode, fetchAccounts, isConfigured,
 } from '../services/truelayer-client.js';
 import { syncAllConnections } from '../services/truelayer-sync.js';
+import { relinkNewConnection } from '../services/truelayer-relink.js';
 import { db } from '../db/schema.js';
 
 const pendingStates = new Map<string, { userId: number; createdAt: number }>();
@@ -92,6 +93,18 @@ export function createTrueLayerRoutes() {
           a.account_number?.number ?? a.account_number?.iban ?? null,
           a.account_number?.sort_code ?? null,
         );
+      }
+
+      // A reconnect carries on where the dead connection stopped: relink by account
+      // number + sort code, retire the old connection only if all of it moved, and sync
+      // NOW — banks usually release >90 days of history only just after consent.
+      const relink = relinkNewConnection(db, connectionId);
+      console.log(`[truelayer callback] connection ${connectionId}: ${accounts.length} accounts, ` +
+        `${relink.relinked.length} relinked, retired [${relink.retiredConnections.join(',')}]`);
+      if (relink.relinked.length > 0) {
+        syncAllConnections()
+          .then(r => console.log(`[truelayer callback] immediate sync: ${r.imported} new, ${r.skipped} dupes, ${r.accounts} accounts, ${r.errors.length} errors`))
+          .catch(e => console.error('[truelayer callback] immediate sync failed', e?.message));
       }
 
       res.redirect(`${frontendUrl}/?tl_connected=1`);
