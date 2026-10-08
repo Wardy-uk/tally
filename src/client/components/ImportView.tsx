@@ -281,7 +281,7 @@ export function ImportView() {
 
               {preview.preview.length > 0 && (
                 <div className="border border-[var(--color-border)] rounded-[14px] overflow-hidden">
-                  <table className="w-full text-sm">
+                  <div className="table-scroll"><table className="w-full text-sm">
                     <thead>
                       <tr className="bg-[var(--color-bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold">
                         <th className="text-left px-4 py-3">Date</th>
@@ -307,7 +307,7 @@ export function ImportView() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               )}
 

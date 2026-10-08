@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { Login } from './components/Login';
 import { Sidebar, type View } from './components/Sidebar';
+import { MobileNav } from './components/MobileNav';
 import { Dashboard } from './components/Dashboard';
 import { AccountsView } from './components/AccountsView';
 import { ImportView } from './components/ImportView';
@@ -40,7 +41,8 @@ export function App() {
   return (
     <div className="flex min-h-screen">
       <Sidebar view={view} onNavigate={setView} user={user} onLogout={logout} />
-      <main className="flex-1 p-4 md:p-8 min-w-0">
+      <MobileNav view={view} onNavigate={setView} user={user} onLogout={logout} />
+      <main className="flex-1 min-w-0 px-4 pt-[calc(env(safe-area-inset-top)+4.5rem)] pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:p-8 md:pt-8 md:pb-8">
         {view === 'dashboard' && <Dashboard />}
         {view === 'transactions' && <TransactionsView />}
         {view === 'accounts' && <AccountsView user={user} />}

@@ -5,6 +5,7 @@ import {
   ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
 import type { AuthUser } from '../../shared/types';
+import { BUILD_LABEL, hardRefresh } from '../lib/hard-refresh';
 
 export type View =
   | 'dashboard' | 'transactions' | 'accounts' | 'import' | 'rules' | 'budgets'
@@ -17,7 +18,7 @@ interface Props {
   onLogout: () => void;
 }
 
-const NAV: Array<{ id: View; label: string; icon: React.FC<{ className?: string }>; group: string }> = [
+export const NAV: Array<{ id: View; label: string; icon: React.FC<{ className?: string }>; group: string }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'main' },
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'main' },
   { id: 'accounts', label: 'Accounts', icon: Wallet, group: 'main' },
@@ -64,7 +65,7 @@ export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
 
   return (
     <aside
-      className={`shrink-0 bg-[var(--color-surface)] border-r border-[var(--color-border)] flex flex-col h-screen sticky top-0 transition-all duration-200 ${
+      className={`hidden md:flex shrink-0 bg-[var(--color-surface)] border-r border-[var(--color-border)] flex-col h-screen sticky top-0 transition-all duration-200 ${
         collapsed ? 'w-[72px]' : 'w-[240px]'
       }`}
     >
@@ -75,7 +76,7 @@ export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
         {!collapsed && (
           <div className="flex-1 min-w-0">
             <div className="text-base font-extrabold tracking-tight">Tally</div>
-            <div className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wider">v{__APP_VERSION__}</div>
+            <div className="text-[10px] text-[var(--color-text-4)] tracking-wider">{BUILD_LABEL}</div>
           </div>
         )}
       </div>
@@ -96,11 +97,11 @@ export function Sidebar({ view, onNavigate, user, onLogout }: Props) {
         </button>
 
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => hardRefresh()}
           className={`flex items-center ${collapsed ? 'justify-center' : 'justify-center gap-2'} h-9 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-mint)] hover:border-[rgba(74,222,128,0.3)] transition`}
-          title="Refresh"
+          title="Hard refresh — clears the app cache and loads the latest deploy"
         >
-          {collapsed ? <RefreshCw className="w-3.5 h-3.5" /> : <><RefreshCw className="w-3.5 h-3.5" /> Refresh</>}
+          {collapsed ? <RefreshCw className="w-3.5 h-3.5" /> : <><RefreshCw className="w-3.5 h-3.5" /> Hard refresh</>}
         </button>
 
         <div className={`flex items-center gap-3 ${collapsed ? 'flex-col px-0 py-2' : 'px-3 py-2'} rounded-xl bg-[var(--color-bg-elevated)]`}>

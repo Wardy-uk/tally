@@ -57,7 +57,7 @@ export function RulesView() {
 
   return (
     <div className="flex flex-col gap-6 fade-up">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Rules</h1>
           <p className="text-sm text-[var(--color-text-3)] mt-1">
@@ -91,7 +91,7 @@ export function RulesView() {
             action={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAdding(true)}>New rule</Button>}
           />
         ) : (
-          <table className="w-full text-sm">
+          <div className="table-scroll"><table className="w-full text-sm">
             <thead>
               <tr className="text-[10px] uppercase tracking-wider text-[var(--color-text-4)] font-semibold border-b border-[var(--color-border)]">
                 <th className="text-left px-5 py-3">Rule</th>
@@ -126,7 +126,7 @@ export function RulesView() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 
