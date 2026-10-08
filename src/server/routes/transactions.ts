@@ -4,21 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { db } from '../db/schema.js';
 import { TransactionQueries, RuleQueries } from '../db/queries.js';
 import { invalidateRuleCache } from '../services/rules-engine.js';
-
-/**
- * Extract a useful merchant phrase from a transaction description.
- * Strips card metadata, numbers, and common noise; keeps the first 2-3 meaningful words.
- */
-function extractMerchantPhrase(description: string): string {
-  const cleaned = description
-    .replace(/\b(DEB|CR|POS|DD|SO|BGC|FPI|FPO|ATM|TFR|VIS)\b/gi, '')
-    .replace(/\d{6,}/g, '')
-    .replace(/[^a-zA-Z0-9&\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const words = cleaned.split(' ').filter(w => w.length > 1);
-  return words.slice(0, 2).join(' ') || description.slice(0, 20);
-}
+import { merchantIdentity } from '../services/merchant.js';
 
 export function createTransactionsRoutes() {
   const router = Router();
@@ -95,19 +81,22 @@ export function createTransactionsRoutes() {
     const schema = z.object({
       categoryId: z.number().int().nullable().optional(),
       notes: z.string().nullable().optional(),
-      /** Opt out of auto-rule creation. Defaults to true. */
+      /** Opt out of rule creation — categorise this one transaction only. Defaults to true. */
       createRule: z.boolean().optional(),
-      /** Also apply to existing similar uncategorised transactions. Defaults to true. */
+      /** Also apply to existing uncategorised transactions from the same merchant. Defaults to true. */
       applyToSimilar: z.boolean().optional(),
+      /** User has confirmed a rule the server flagged as ambiguous. */
+      confirmRule: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.message });
+    const { categoryId, notes } = parsed.data;
 
-    if (parsed.data.categoryId !== undefined) {
-      TransactionQueries.updateCategory.run(parsed.data.categoryId, id);
+    if (categoryId !== undefined) {
+      TransactionQueries.updateCategory.run(categoryId, categoryId === null ? null : 'user', null, id);
     }
-    if (parsed.data.notes !== undefined) {
-      TransactionQueries.updateNotes.run(parsed.data.notes, id);
+    if (notes !== undefined) {
+      TransactionQueries.updateNotes.run(notes, id);
     }
 
     const createRule = parsed.data.createRule !== false;
@@ -116,56 +105,69 @@ export function createTransactionsRoutes() {
     let appliedToSimilar = 0;
     let ruleCreated = false;
     let ruleUpdated = false;
+    let merchantKey: string | null = null;
+    /** Set when no rule was made because the merchant identity is unclear — client may confirm. */
+    let needsConfirmation: { reason: string; message: string } | null = null;
+    let ruleSkipped: string | null = null;
 
-    // Auto-create / upsert a rule so future imports of the same merchant get categorised.
-    // Skip if clearing the category (user explicitly uncategorising) or not creating rule.
-    if (createRule && parsed.data.categoryId !== null && parsed.data.categoryId !== undefined) {
+    // "Always use this category for this merchant": the rule keys on the normalised merchant,
+    // never on the date, card number or other incidental description text.
+    if (createRule && categoryId !== null && categoryId !== undefined) {
       const tx = TransactionQueries.findById.get(id) as any;
-      if (tx) {
-        const phrase = extractMerchantPhrase(tx.description);
-        if (phrase && phrase.length >= 2) {
-          // Upsert: if a rule already matches the same phrase, update its category
-          // rather than creating a duplicate. This lets the user "correct" their
-          // past decision by just re-categorising another transaction.
-          const existing = db.prepare(`
-            SELECT id, category_id FROM rules
-            WHERE match_field = 'description'
-              AND match_type = 'contains'
-              AND LOWER(match_value) = LOWER(?)
-            LIMIT 1
-          `).get(phrase) as { id: number; category_id: number } | undefined;
+      const ident = tx ? merchantIdentity(tx.description, tx.merchant) : null;
+      merchantKey = ident?.key ?? null;
 
-          if (existing) {
-            if (existing.category_id !== parsed.data.categoryId) {
-              db.prepare(`UPDATE rules SET category_id = ? WHERE id = ?`)
-                .run(parsed.data.categoryId, existing.id);
-              ruleUpdated = true;
-            }
-          } else {
-            RuleQueries.create.run(
-              `Auto: ${phrase}`,
-              'description',
-              'contains',
-              phrase,
-              parsed.data.categoryId,
-              100,
-              req.user!.id,
-            );
-            ruleCreated = true;
-          }
-          invalidateRuleCache();
+      if (!ident || !ident.key) {
+        ruleSkipped = 'No stable merchant in this description — categorised this transaction only.';
+      } else if (ident.wrapperOnly && !parsed.data.confirmRule) {
+        needsConfirmation = {
+          reason: 'wrapper_only',
+          message: `"${ident.key}" has no underlying merchant, so a rule would put every such line in one category. Create it anyway?`,
+        };
+      } else {
+        const conflicts = (db.prepare(`
+          SELECT id, description, merchant, category_id FROM transactions
+          WHERE category_source = 'user' AND category_id IS NOT NULL AND category_id != ? AND id != ?
+        `).all(categoryId, id) as any[])
+          .filter(t => merchantIdentity(t.description, t.merchant).key === ident.key);
+        if (conflicts.length > 0 && !parsed.data.confirmRule) {
+          needsConfirmation = {
+            reason: 'conflicting_history',
+            message: `You've previously put ${conflicts.length} "${ident.key}" transaction${conflicts.length > 1 ? 's' : ''} in a different category. Make this the rule for all future "${ident.key}" transactions?`,
+          };
+        }
+      }
 
-          // Apply to all matching uncategorised transactions immediately
-          if (applyToSimilar) {
-            const result = db.prepare(`
-              UPDATE transactions
-              SET category_id = ?
-              WHERE category_id IS NULL
-                AND is_transfer = 0
-                AND LOWER(description) LIKE ?
-            `).run(parsed.data.categoryId, `%${phrase.toLowerCase()}%`);
-            appliedToSimilar = Number(result.changes);
+      if (ident?.key && !needsConfirmation) {
+        const key = ident.key;
+        const existing = db.prepare(`
+          SELECT id, category_id FROM rules
+          WHERE active = 1 AND match_field = 'merchant_key' AND match_value = ?
+          LIMIT 1
+        `).get(key) as { id: number; category_id: number } | undefined;
+
+        let ruleId: number;
+        if (existing) {
+          ruleId = existing.id;
+          if (existing.category_id !== categoryId) {
+            db.prepare(`UPDATE rules SET category_id = ?, source = 'user_confirmed' WHERE id = ?`).run(categoryId, existing.id);
+            ruleUpdated = true;
           }
+        } else {
+          const r = RuleQueries.create.run(`Merchant: ${key}`, 'merchant_key', 'equals', key, categoryId, 100, req.user!.id, 'user_confirmed');
+          ruleId = Number(r.lastInsertRowid);
+          ruleCreated = true;
+        }
+        invalidateRuleCache();
+
+        if (applyToSimilar) {
+          const similar = (db.prepare(`
+            SELECT id, description, merchant FROM transactions
+            WHERE category_id IS NULL AND is_transfer = 0
+          `).all() as any[]).filter(t => merchantIdentity(t.description, t.merchant).key === key);
+          const upd = db.prepare(`UPDATE transactions SET category_id = ?, category_source = 'rule', category_rule_id = ? WHERE id = ?`);
+          for (const t of similar) upd.run(categoryId, ruleId, t.id);
+          appliedToSimilar = similar.length;
         }
       }
     }
@@ -177,6 +179,9 @@ export function createTransactionsRoutes() {
         appliedToSimilar,
         ruleCreated,
         ruleUpdated,
+        merchantKey,
+        needsConfirmation,
+        ruleSkipped,
       },
     });
   });

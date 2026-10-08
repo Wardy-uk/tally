@@ -79,7 +79,7 @@ export const TransactionQueries = {
       category_id, is_transfer, import_batch_id, dedupe_hash, balance_after)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
-  updateCategory: db.prepare(`UPDATE transactions SET category_id = ? WHERE id = ?`),
+  updateCategory: db.prepare(`UPDATE transactions SET category_id = ?, category_source = ?, category_rule_id = ? WHERE id = ?`),
   updateTransferPair: db.prepare(`
     UPDATE transactions SET is_transfer = 1, transfer_pair_id = ? WHERE id = ?
   `),
@@ -100,10 +100,10 @@ export const TransactionQueries = {
 
 // ===== Rules =====
 export const RuleQueries = {
-  list: db.prepare(`SELECT * FROM rules ORDER BY priority DESC, id`),
+  list: db.prepare(`SELECT * FROM rules WHERE active = 1 ORDER BY priority DESC, id`),
   create: db.prepare(`
-    INSERT INTO rules (name, match_field, match_type, match_value, category_id, priority, created_by_user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO rules (name, match_field, match_type, match_value, category_id, priority, created_by_user_id, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `),
   delete: db.prepare(`DELETE FROM rules WHERE id = ?`),
 };

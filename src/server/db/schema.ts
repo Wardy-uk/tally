@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.resolve(__dirname, '../../../tally.db');
+const DB_PATH = process.env.TALLY_DB_PATH ?? path.resolve(__dirname, '../../../tally.db');
 
 export const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL');
@@ -233,6 +233,13 @@ function buildSchema() {
 
   // Idempotent migrations — ALTER TABLE wrapped so re-runs don't throw.
   tryExec(`ALTER TABLE salary_profiles ADD COLUMN pay_day_type TEXT NOT NULL DEFAULT 'day'`);
+  // Category provenance: who set it ('user' | 'rule' | 'ai' | 'migration'), and via which rule.
+  tryExec(`ALTER TABLE transactions ADD COLUMN category_source TEXT`);
+  tryExec(`ALTER TABLE transactions ADD COLUMN category_rule_id INTEGER`);
+  // Rules are retired, not deleted, so migrations stay auditable.
+  tryExec(`ALTER TABLE rules ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'`);
+  tryExec(`ALTER TABLE rules ADD COLUMN active INTEGER NOT NULL DEFAULT 1`);
+  tryExec(`ALTER TABLE rules ADD COLUMN retired_reason TEXT`);
 }
 
 function tryExec(sql: string) {

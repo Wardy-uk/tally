@@ -12,7 +12,7 @@ import { useCategories } from '../hooks/useCategories';
 interface Rule {
   id: number;
   name: string;
-  match_field: 'description' | 'merchant' | 'amount';
+  match_field: 'merchant_key' | 'description' | 'merchant';
   match_type: 'contains' | 'equals' | 'regex' | 'startsWith';
   match_value: string;
   category_id: number;
@@ -144,21 +144,25 @@ function AddRuleModal({
   categories: Array<{ id: number; name: string }>;
 }) {
   const [name, setName] = useState('');
-  const [matchField, setMatchField] = useState<'description' | 'merchant' | 'amount'>('description');
-  const [matchType, setMatchType] = useState<'contains' | 'equals' | 'regex' | 'startsWith'>('contains');
+  const [matchField, setMatchField] = useState<'merchant_key' | 'description' | 'merchant'>('merchant_key');
+  const [matchType, setMatchType] = useState<'contains' | 'equals' | 'regex' | 'startsWith'>('equals');
+  const [error, setError] = useState<string | null>(null);
   const [matchValue, setMatchValue] = useState('');
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.id ?? 0);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     setBusy(true);
+    setError(null);
     try {
       await api('/rules', {
         method: 'POST',
-        body: JSON.stringify({ name, matchField, matchType, matchValue, categoryId, priority: 100 }),
+        body: JSON.stringify({ name, matchField, matchType: matchField === 'merchant_key' ? 'equals' : matchType, matchValue, categoryId, priority: 100 }),
       });
       setName(''); setMatchValue('');
       onSaved();
+    } catch (e: any) {
+      setError(e?.error ?? 'Could not save rule');
     } finally { setBusy(false); }
   }
 
@@ -185,9 +189,9 @@ function AddRuleModal({
             value={matchField}
             onChange={e => setMatchField(e.target.value as any)}
             options={[
-              { value: 'description', label: 'Description' },
-              { value: 'merchant', label: 'Merchant' },
-              { value: 'amount', label: 'Amount (pence)' },
+              { value: 'merchant_key', label: 'Merchant (exact)' },
+              { value: 'description', label: 'Description text' },
+              { value: 'merchant', label: 'Merchant text' },
             ]}
           />
           <Select
@@ -202,13 +206,19 @@ function AddRuleModal({
             ]}
           />
         </div>
-        <Input label="Match value" value={matchValue} onChange={e => setMatchValue(e.target.value)} placeholder="e.g. TESCO" />
+        <Input label="Match value" value={matchValue} onChange={e => setMatchValue(e.target.value)} placeholder={matchField === 'merchant_key' ? 'e.g. TESCO STORES' : 'e.g. TESCO'} />
+        {matchField === 'merchant_key' && (
+          <p className="text-xs text-[var(--color-text-4)] -mt-2">
+            Matches the cleaned merchant name exactly — card numbers, dates and branch codes are ignored.
+          </p>
+        )}
         <Select
           label="Category"
           value={String(categoryId)}
           onChange={e => setCategoryId(Number(e.target.value))}
           options={categories.map(c => ({ value: c.id, label: c.name }))}
         />
+        {error && <p className="text-sm text-[var(--color-coral)]">{error}</p>}
       </div>
     </Modal>
   );

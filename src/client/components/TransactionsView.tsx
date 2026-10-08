@@ -222,13 +222,26 @@ function TxRow({
   async function changeCategory(newCategoryId: number | null) {
     setBusy(true);
     try {
-      const result = await api<{ appliedToSimilar: number; ruleCreated: boolean; ruleUpdated: boolean }>(
-        `/transactions/${r.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ categoryId: newCategoryId }),
-        },
-      );
+      type Result = {
+        appliedToSimilar: number; ruleCreated: boolean; ruleUpdated: boolean;
+        needsConfirmation: { reason: string; message: string } | null; ruleSkipped: string | null;
+      };
+      const patch = (confirmRule: boolean) => api<Result>(`/transactions/${r.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ categoryId: newCategoryId, confirmRule }),
+      });
+      let result = await patch(false);
+      // Merchant identity was ambiguous: the category is saved for this transaction only,
+      // and a merchant-wide rule needs an explicit yes.
+      if (result.needsConfirmation) {
+        if (confirm(result.needsConfirmation.message)) {
+          result = await patch(true);
+        } else {
+          onFeedback('Categorised this transaction only — no rule created');
+        }
+      } else if (result.ruleSkipped) {
+        onFeedback(result.ruleSkipped);
+      }
       if (result.ruleCreated && result.appliedToSimilar > 0) {
         onFeedback(`Rule saved — also categorised ${result.appliedToSimilar} similar transaction${result.appliedToSimilar > 1 ? 's' : ''}`);
       } else if (result.ruleCreated) {

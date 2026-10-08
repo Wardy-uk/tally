@@ -60,7 +60,7 @@ ${txList}
 
 Return JSON: { "categorisations": [{"txId": 1, "categoryId": 5}, ...] }`;
 
-  const update = db.prepare(`UPDATE transactions SET category_id = ? WHERE id = ?`);
+  const update = db.prepare(`UPDATE transactions SET category_id = ?, category_source = 'ai', category_rule_id = NULL WHERE id = ?`);
   const errors: string[] = [];
   let categorised = 0;
 

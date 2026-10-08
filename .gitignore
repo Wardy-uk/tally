@@ -16,3 +16,6 @@ receipts/
 backups/
 uploads/
 .openai-cache/
+
+# Rule-migration reports contain real spending data
+migration-dryrun*.md

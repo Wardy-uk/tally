@@ -1,20 +1,8 @@
 import { db } from '../db/schema.js';
+import { findRuleForTx, orderRules, type RuleLike, type TxLite } from './rule-policy.js';
 
-interface Rule {
-  id: number;
+interface Rule extends RuleLike {
   name: string;
-  match_field: 'description' | 'merchant' | 'amount';
-  match_type: 'contains' | 'equals' | 'regex' | 'startsWith';
-  match_value: string;
-  category_id: number;
-  priority: number;
-}
-
-interface TxLite {
-  id: number;
-  description: string;
-  merchant: string | null;
-  amount: number;
 }
 
 let cache: Rule[] | null = null;
@@ -23,59 +11,31 @@ export function invalidateRuleCache() {
   cache = null;
 }
 
+/** Active rules that pass the safety policy, in evaluation order. */
 export function loadRules(): Rule[] {
   if (cache) return cache;
-  cache = db.prepare(`SELECT * FROM rules ORDER BY priority DESC, id`).all() as Rule[];
+  cache = orderRules(db.prepare(`SELECT * FROM rules WHERE active = 1`).all() as unknown as Rule[]);
   return cache;
 }
 
-function matches(rule: Rule, tx: TxLite): boolean {
-  const haystack = (() => {
-    if (rule.match_field === 'description') return tx.description;
-    if (rule.match_field === 'merchant') return tx.merchant ?? tx.description;
-    if (rule.match_field === 'amount') return String(tx.amount);
-    return '';
-  })().toLowerCase();
-  const needle = rule.match_value.toLowerCase();
-
-  switch (rule.match_type) {
-    case 'contains':   return haystack.includes(needle);
-    case 'equals':     return haystack === needle;
-    case 'startsWith': return haystack.startsWith(needle);
-    case 'regex':
-      try { return new RegExp(rule.match_value, 'i').test(haystack); }
-      catch { return false; }
-  }
-}
-
-/** Find the first (highest-priority) matching rule for a transaction. */
+/** Find the first (highest-priority) matching rule's category for a transaction. */
 export function findCategoryForTx(tx: TxLite, rules?: Rule[]): number | null {
-  const rs = rules ?? loadRules();
-  for (const r of rs) {
-    if (matches(r, tx)) return r.category_id;
-  }
-  return null;
+  return findRuleForTx(tx, rules ?? loadRules())?.category_id ?? null;
 }
 
-/** Apply all rules to every uncategorised transaction. Returns count updated. */
-export function applyRulesToBacklog(): number {
+function applyTo(rows: TxLite[]): number {
   const rules = loadRules();
   if (rules.length === 0) return 0;
-
-  const rows = db.prepare(`
-    SELECT id, description, merchant, amount
-    FROM transactions
-    WHERE category_id IS NULL AND is_transfer = 0
-  `).all() as TxLite[];
-
-  const update = db.prepare(`UPDATE transactions SET category_id = ? WHERE id = ?`);
+  const update = db.prepare(
+    `UPDATE transactions SET category_id = ?, category_source = 'rule', category_rule_id = ? WHERE id = ?`,
+  );
   let n = 0;
   db.exec('BEGIN');
   try {
     for (const tx of rows) {
-      const catId = findCategoryForTx(tx, rules);
-      if (catId !== null) {
-        update.run(catId, tx.id);
+      const rule = findRuleForTx(tx, rules);
+      if (rule) {
+        update.run(rule.category_id, rule.id, tx.id);
         n++;
       }
     }
@@ -85,36 +45,24 @@ export function applyRulesToBacklog(): number {
     throw e;
   }
   return n;
+}
+
+/** Apply all rules to every uncategorised transaction. Returns count updated. */
+export function applyRulesToBacklog(): number {
+  return applyTo(db.prepare(`
+    SELECT id, description, merchant, amount
+    FROM transactions
+    WHERE category_id IS NULL AND is_transfer = 0
+  `).all() as unknown as TxLite[]);
 }
 
 /** Apply all rules to a specific batch of newly-imported transaction IDs. */
 export function applyRulesToTxIds(ids: number[]): number {
   if (ids.length === 0) return 0;
-  const rules = loadRules();
-  if (rules.length === 0) return 0;
-
   const placeholders = ids.map(() => '?').join(',');
-  const rows = db.prepare(`
+  return applyTo(db.prepare(`
     SELECT id, description, merchant, amount
     FROM transactions
     WHERE id IN (${placeholders}) AND category_id IS NULL AND is_transfer = 0
-  `).all(...ids) as TxLite[];
-
-  const update = db.prepare(`UPDATE transactions SET category_id = ? WHERE id = ?`);
-  let n = 0;
-  db.exec('BEGIN');
-  try {
-    for (const tx of rows) {
-      const catId = findCategoryForTx(tx, rules);
-      if (catId !== null) {
-        update.run(catId, tx.id);
-        n++;
-      }
-    }
-    db.exec('COMMIT');
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  return n;
+  `).all(...ids) as unknown as TxLite[]);
 }
