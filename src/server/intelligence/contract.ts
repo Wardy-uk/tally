@@ -126,6 +126,31 @@ export function toContract(intel: Intelligence) {
       ...shapeItems(intel.upcoming),
       planned: intel.planned.filter((p) => p.status === 'open' && !privateIds.has(Number(p.account_id))).map((p) => ({ id: p.id, title: p.title, kind: p.kind, dueDate: p.due_date, amountPence: p.amount })),
     },
+
+    // Build 27 — added compatibly to v1: a new section, nothing existing changed. Totals and windows
+    // only — never a transaction, merchant or payee. Car spend on someone else's own account is in
+    // the totals and is never offered for review.
+    vehicleFinance: (() => {
+      const v = intel.vehicle;
+      const anyCar = v.vehicles.length > 0;
+      return {
+        meta: meta({ period: intel.monthly.length ? `${intel.monthly[0].month} – ${intel.monthly[intel.monthly.length - 1].month}` : null,
+          confidence: !anyCar ? 'unavailable' : v.review.pending ? 'partial' : 'strong',
+          explanation: [
+            'Vehicle spend is what a person said is the car\'s in Tally (Outlook → Motoring), or what a rule they confirmed matches. Tally calculates every figure here.',
+            `Buckets: fuel; insurance; finance repayments; maintenance (service, MOT, tyres); repairs; tax; breakdown cover; other motoring (warranty, parking, anything else).`,
+            v.review.pending ? `${v.review.pending} transaction${v.review.pending === 1 ? '' : 's'} might be the car's and ${v.review.pending === 1 ? 'is' : 'are'} not yet reviewed — months that contain one are partial.` : 'Nothing is waiting for review.',
+          ],
+          coverage: anyCar ? `${v.vehicles.reduce((a, x) => a + x.classified.transactions, 0)} car transactions classified` : 'nothing classified as the car\'s yet' }),
+        reviewIn: 'Tally → Outlook → Motoring',
+        vehicles: v.vehicles.map((x) => ({
+          vehicleRef: x.vehicleRef, confidence: x.confidence, explanation: x.explanation, classified: x.classified,
+          currentMonth: x.currentMonth, latestCompleteMonth: x.latestCompleteMonth, months: x.months,
+          last3CompleteMonths: x.last3CompleteMonths, last6CompleteMonths: x.last6CompleteMonths, rolling12m: x.rolling12m, trend: x.trend,
+        })),
+        review: v.review, rules: v.rules,
+      };
+    })(),
   };
 }
 export type FinanceIntelligenceV1 = ReturnType<typeof toContract>;

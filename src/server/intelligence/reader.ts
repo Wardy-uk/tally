@@ -6,6 +6,7 @@ import { db } from '../db/schema.js';
 import type { IntelRead } from './compose.js';
 import type { RawAccount, RawConnection, RawTlAccount, RawTx } from './ledger.js';
 import type { Planned } from './anomalies.js';
+import type { VehicleDecision, VehicleRule } from './vehicle.js';
 
 export function readIntel(): IntelRead {
   const transactions = db.prepare(`
@@ -21,5 +22,9 @@ export function readIntel(): IntelRead {
   const recurringDecisions = new Map((db.prepare(`SELECT series_key, decision FROM recurring_decisions`).all() as Array<{ series_key: string; decision: string }>).map((r) => [r.series_key, r.decision]));
   const unusualDecisions = new Map((db.prepare(`SELECT item_key, decision FROM unusual_decisions`).all() as Array<{ item_key: string; decision: string }>).map((r) => [r.item_key, r.decision]));
   const planned = db.prepare(`SELECT id, title, kind, due_date, amount, account_id, status, note FROM planned_payments ORDER BY due_date, id`).all() as unknown as Planned[];
-  return { transactions, accounts, tlAccounts, connections, recurringDecisions, unusualDecisions, planned };
+  const vehicleDecisions = (db.prepare(`SELECT transaction_id, decision, spend_type, vehicle_ref, basis, rule_id FROM vehicle_spend_decisions`).all() as Array<Record<string, any>>)
+    .map((r) => ({ transactionId: Number(r.transaction_id), decision: r.decision, spendType: r.spend_type, vehicleRef: r.vehicle_ref, basis: r.basis, ruleId: r.rule_id }) as VehicleDecision);
+  const vehicleRules = (db.prepare(`SELECT id, match_kind, merchant_key, category_name, spend_type, vehicle_ref, active FROM vehicle_spend_rules ORDER BY id`).all() as Array<Record<string, any>>)
+    .map((r) => ({ id: Number(r.id), matchKind: r.match_kind, merchantKey: r.merchant_key, categoryName: r.category_name, spendType: r.spend_type, vehicleRef: r.vehicle_ref, active: !!r.active }) as VehicleRule);
+  return { transactions, accounts, tlAccounts, connections, recurringDecisions, unusualDecisions, planned, vehicleDecisions, vehicleRules };
 }

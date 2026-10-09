@@ -10,10 +10,13 @@ import { unusualSpend, type Planned } from './anomalies.js';
 import { balanceHistory, balances, cashflow, pressure } from './cashflow.js';
 import { feedHealth, sourceHealth } from './health.js';
 import { addDays, pounds } from './util.js';
+import { vehicleFinance, type VehicleDecision, type VehicleRule } from './vehicle.js';
 
 export interface IntelRead {
   transactions: RawTx[]; accounts: RawAccount[]; tlAccounts: RawTlAccount[]; connections: RawConnection[];
   recurringDecisions: Map<string, string>; unusualDecisions: Map<string, string>; planned: Planned[];
+  /** Build 27 — a person's car-spend decisions and confirmed rules (optional: older readers have none). */
+  vehicleDecisions?: VehicleDecision[]; vehicleRules?: VehicleRule[];
 }
 
 export function compose(read: IntelRead, { now, today }: { now: number; today: string }) {
@@ -63,6 +66,7 @@ export function compose(read: IntelRead, { now, today }: { now: number; today: s
     recurringCounts: series.reduce((o: Record<string, number>, s) => { o[s.state] = (o[s.state] ?? 0) + 1; return o; }, {}),
     priceChanges: series.filter((s) => ESTABLISHED(s) && s.priceChange).map((s) => ({ seriesKey: s.key, label: s.label, accountId: s.accountId, owner: s.owner, cadence: s.cadence, category: s.category, ...s.priceChange! })),
     unusual, upcoming: [...upcoming, ...annual],
+    vehicle: vehicleFinance(rows, read.vehicleDecisions ?? [], read.vehicleRules ?? [], summaries.map((m) => ({ month: m.month, complete: m.complete, coverageReasons: m.coverageReasons })), { today }),
     planned: read.planned,
     counts: {
       statuses: rows.reduce((o: Record<string, number>, t) => { o[t.status] = (o[t.status] ?? 0) + 1; return o; }, {}),

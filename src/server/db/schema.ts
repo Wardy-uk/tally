@@ -278,6 +278,37 @@ function buildSchema() {
       FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL
     );
   `);
+
+  // Build 27 — vehicle finance. A person says which transactions are the car's (moved here from
+  // NEURO, which used to keep these decisions itself). Rules are applied at read time and never
+  // override a decision. vehicle_ref is NEURO's vehicle id (e.g. "vehicle:captur") — a label, not a key.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vehicle_spend_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      match_kind TEXT NOT NULL CHECK (match_kind IN ('merchant', 'category', 'merchant+category')),
+      merchant_key TEXT,
+      category_name TEXT,
+      spend_type TEXT NOT NULL,
+      vehicle_ref TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      source TEXT NOT NULL DEFAULT 'tally',
+      note TEXT,
+      created_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      retired_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS vehicle_spend_decisions (
+      transaction_id INTEGER PRIMARY KEY,
+      decision TEXT NOT NULL CHECK (decision IN ('vehicle', 'not_vehicle', 'unknown')),
+      spend_type TEXT,
+      vehicle_ref TEXT,
+      basis TEXT NOT NULL DEFAULT 'confirmed-once' CHECK (basis IN ('confirmed-once', 'imported')),
+      rule_id INTEGER,
+      source TEXT NOT NULL DEFAULT 'tally',
+      decided_by_user_id INTEGER,
+      decided_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
 }
 
 function tryExec(sql: string) {

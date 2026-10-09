@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import { Money, formatMoney } from './ui/Money';
 import { api } from '../lib/api';
+import { MotoringPanel } from './MotoringPanel';
 
 /**
  * Build 26 — Outlook: what is happening financially, what is changing, what is likely to happen next,
@@ -230,6 +231,8 @@ export function OutlookContent({ data, error = null, load = () => {}, decide = (
           <Button size="sm" onClick={addPlanned}>Add</Button>
         </div>
       </Card>
+
+      <MotoringPanel />
     </div>
   );
 }
