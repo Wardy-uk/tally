@@ -90,7 +90,9 @@ async function syncOneTlAccount(
       ).get(tallyAccountId) as { s: number }).s;
 
       const opening = signedCurrent - txSum;
-      db.prepare(`UPDATE accounts SET opening_balance = ? WHERE id = ?`).run(opening, tallyAccountId);
+      // balance_observed_at: the balance is the bank's own figure as of NOW (Build 26 — freshness of a
+      // balance is its own fact, separate from the feed refresh, which can succeed without it).
+      db.prepare(`UPDATE accounts SET opening_balance = ?, balance_observed_at = ? WHERE id = ?`).run(opening, new Date().toISOString(), tallyAccountId);
     }
   } catch (e: any) {
     console.warn(`[truelayer-sync] balance fetch failed for account ${tallyAccountId}: ${e.message}`);

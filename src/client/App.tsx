@@ -15,6 +15,7 @@ import { InsightsView } from './components/InsightsView';
 import { ChatView } from './components/ChatView';
 import { ReceiptsView } from './components/ReceiptsView';
 import { Placeholder } from './components/Placeholder';
+import { OutlookView } from './components/OutlookView';
 
 export function App() {
   const { user, loading, hasUsers, login, register, logout } = useAuth();
@@ -44,6 +45,7 @@ export function App() {
       <MobileNav view={view} onNavigate={setView} user={user} onLogout={logout} />
       <main className="flex-1 min-w-0 px-4 pt-[calc(env(safe-area-inset-top)+4.5rem)] pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:p-8 md:pt-8 md:pb-8">
         {view === 'dashboard' && <Dashboard />}
+        {view === 'outlook' && <OutlookView />}
         {view === 'transactions' && <TransactionsView />}
         {view === 'accounts' && <AccountsView user={user} />}
         {view === 'import' && <ImportView />}

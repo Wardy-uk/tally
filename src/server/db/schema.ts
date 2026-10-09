@@ -240,6 +240,44 @@ function buildSchema() {
   tryExec(`ALTER TABLE rules ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'`);
   tryExec(`ALTER TABLE rules ADD COLUMN active INTEGER NOT NULL DEFAULT 1`);
   tryExec(`ALTER TABLE rules ADD COLUMN retired_reason TEXT`);
+
+  // Build 26 — finance intelligence. When the bank's own balance was last fetched (a feed refresh
+  // without a balance fetch must not make a balance look current).
+  tryExec(`ALTER TABLE accounts ADD COLUMN balance_observed_at TEXT`);
+  db.exec(`
+    -- "This is / is not recurring", said in Tally about a detected series (key from intelligence/recurring.ts).
+    CREATE TABLE IF NOT EXISTS recurring_decisions (
+      series_key TEXT PRIMARY KEY,
+      decision TEXT NOT NULL CHECK (decision IN ('recurring', 'not_recurring')),
+      label TEXT,
+      decided_by_user_id INTEGER,
+      decided_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    -- An answer to an unusual-spend or possible-duplicate item.
+    CREATE TABLE IF NOT EXISTS unusual_decisions (
+      item_key TEXT PRIMARY KEY,
+      decision TEXT NOT NULL CHECK (decision IN ('expected', 'not_duplicate', 'leave')),
+      decided_by_user_id INTEGER,
+      decided_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    -- A known future payment or receipt (an annual bill, a renewal, a one-off): signed pence,
+    -- negative = money out. The forecast includes it on its date; unusual-spend treats a matching
+    -- payment as expected.
+    CREATE TABLE IF NOT EXISTS planned_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'one_off' CHECK (kind IN ('annual_bill', 'renewal', 'one_off', 'income')),
+      due_date TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      account_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'cancelled')),
+      note TEXT,
+      created_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL
+    );
+  `);
 }
 
 function tryExec(sql: string) {

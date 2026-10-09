@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Upload, PieChart,
   Sparkles, Repeat, Receipt, Settings, LogOut, MessageSquare, Zap, RefreshCw,
-  ChevronsLeft, ChevronsRight,
+  ChevronsLeft, ChevronsRight, Compass,
 } from 'lucide-react';
 import type { AuthUser } from '../../shared/types';
 import { BUILD_LABEL, hardRefresh } from '../lib/hard-refresh';
 
 export type View =
   | 'dashboard' | 'transactions' | 'accounts' | 'import' | 'rules' | 'budgets'
-  | 'insights' | 'subscriptions' | 'receipts' | 'chat' | 'settings';
+  | 'insights' | 'subscriptions' | 'receipts' | 'chat' | 'settings' | 'outlook';
 
 interface Props {
   view: View;
@@ -20,6 +20,7 @@ interface Props {
 
 export const NAV: Array<{ id: View; label: string; icon: React.FC<{ className?: string }>; group: string }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'main' },
+  { id: 'outlook', label: 'Outlook', icon: Compass, group: 'main' },
   { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, group: 'main' },
   { id: 'accounts', label: 'Accounts', icon: Wallet, group: 'main' },
   { id: 'import', label: 'Import', icon: Upload, group: 'main' },

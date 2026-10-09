@@ -5,7 +5,7 @@ import { NAV, type View } from './Sidebar';
 import { BUILD_LABEL, hardRefresh } from '../lib/hard-refresh';
 
 /** Views that get a slot in the bottom tab bar; everything else lives under "More". */
-const TABS: View[] = ['dashboard', 'transactions', 'budgets', 'chat'];
+const TABS: View[] = ['dashboard', 'outlook', 'transactions', 'chat'];
 
 interface Props {
   view: View;

@@ -7,16 +7,17 @@ import { EmptyState } from './ui/EmptyState';
 import { api } from '../lib/api';
 
 interface Recurring {
-  id: number;
+  id: string;
   merchant: string;
   typical_amount: number;
-  cadence: 'weekly' | 'monthly' | 'yearly';
+  cadence: 'weekly' | 'fortnightly' | 'four_weekly' | 'monthly' | 'quarterly' | 'yearly' | null;
   last_seen: string;
   next_expected: string | null;
   ignored: number;
+  monthly_equivalent: number | null;
 }
 
-const CADENCE_LABEL = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
+const CADENCE_LABEL: Record<string, string> = { weekly: 'Weekly', fortnightly: 'Fortnightly', four_weekly: 'Every 4 weeks', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' };
 
 export function SubscriptionsView() {
   const [rows, setRows] = useState<Recurring[]>([]);
@@ -48,12 +49,8 @@ export function SubscriptionsView() {
   const active = rows.filter(r => !r.ignored);
   const ignored = rows.filter(r => r.ignored);
 
-  // Monthly total (weekly * 4.33, yearly / 12)
-  const monthlyTotal = active.reduce((sum, r) => {
-    if (r.cadence === 'weekly') return sum + r.typical_amount * 4.33;
-    if (r.cadence === 'yearly') return sum + r.typical_amount / 12;
-    return sum + r.typical_amount;
-  }, 0);
+  // Monthly equivalent is calculated by Tally's intelligence engine (cadence × amount), not here.
+  const monthlyTotal = active.reduce((sum, r) => sum + (r.monthly_equivalent ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-6 fade-up">
@@ -133,7 +130,7 @@ function Row({ r, onToggle }: { r: Recurring; onToggle: (r: Recurring) => void }
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold truncate">{r.merchant}</div>
           <div className="text-xs text-[var(--color-text-3)] flex items-center gap-2 mt-0.5">
-            <span>{CADENCE_LABEL[r.cadence]}</span>
+            <span>{r.cadence ? CADENCE_LABEL[r.cadence] : 'Irregular'}</span>
             <span>·</span>
             <Calendar className="w-3 h-3" />
             <span>Last: {r.last_seen}</span>

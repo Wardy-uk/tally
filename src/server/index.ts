@@ -20,6 +20,7 @@ import { createChatRoutes } from './routes/chat.js';
 import { createTrueLayerRoutes } from './routes/truelayer.js';
 import { createReceiptsRoutes } from './routes/receipts.js';
 import { createBackupRoutes } from './routes/backup.js';
+import { createIntelligenceRoutes } from './routes/intelligence.js';
 import { syncAllConnections } from './services/truelayer-sync.js';
 import { createBackup, pruneBackups } from './services/backup-service.js';
 import { loadJwtSecret, JwtSecretError } from './security/jwt-secret.js';
@@ -74,6 +75,7 @@ app.use(p('/api/chat'), createChatRoutes());
 app.use(p('/api/truelayer'), createTrueLayerRoutes());
 app.use(p('/api/receipts'), createReceiptsRoutes());
 app.use(p('/api/backup'), createBackupRoutes());
+app.use(p('/api/intelligence'), createIntelligenceRoutes());
 
 // Note: in production the frontend is hosted on Netlify and proxies /api/*
 // calls back here, so the server does NOT serve static files.
